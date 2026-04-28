@@ -1,0 +1,24 @@
+# Python
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.venv/
+venv/
+.env
+
+# Generated caches/data
+.gamma_cache/
+*.pkl
+*.npz
+*.log
+
+# OS/editor
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
+
+# Local outputs
+*_results.csv
+*_summary.json
+*_report.md
