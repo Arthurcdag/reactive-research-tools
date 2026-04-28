@@ -1,0 +1,7 @@
+[tool.pytest.ini_options]
+pythonpath = [
+  "projects/effective_boolean_filter"
+]
+testpaths = [
+  "projects/effective_boolean_filter/tests"
+]
