@@ -1,0 +1,2 @@
+c,c_minus_threshold,alpha,n0_pred,Nc_pred,row_count,defect_rows,first_defect_n,first_defect_d,first_defect_deficit,first_defect_location,sensitive_rows,verified_rows,verification_mismatches,seconds
+0.555,-0.00918958354775623,,,,2,2,3,2,2,endpoint_like,0,0,0,0.005622173000006114

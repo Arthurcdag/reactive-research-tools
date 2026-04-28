@@ -30,7 +30,7 @@ Location:
 projects/effective_boolean_filter
 ```
 
-## 2. Xi-Jensen Certification Pipeline
+## 2. Xi–Jensen Certification Pipeline
 
 A numerical/research workflow for fast exploratory scans plus progressively stronger certification.
 
@@ -92,7 +92,7 @@ python projects/effective_boolean_filter/cli.py \
   --context "scientific argument"
 ```
 
-Run the Xi-Jensen dashboard if the corresponding generated scripts and dependencies are present:
+Run the Xi–Jensen dashboard if the corresponding generated scripts and dependencies are present:
 
 ```bash
 python projects/xi_jensen_pipeline/scripts/xi_jensen_frontier_dashboard.py --help
@@ -103,7 +103,7 @@ python projects/xi_jensen_pipeline/scripts/xi_jensen_frontier_dashboard.py --hel
 This repo is an initial research/workbench packaging. It contains:
 - working MVP code for the argument filter,
 - generated developer briefs,
-- Xi-Jensen scripts developed during the research session,
+- Xi–Jensen scripts developed during the research session,
 - workflow notes,
 - issue templates for implementation.
 

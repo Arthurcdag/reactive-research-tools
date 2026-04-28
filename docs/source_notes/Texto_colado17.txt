@@ -1,0 +1,90 @@
+PS C:\Users\Usuario\Downloads\xi_jensen_opt> python xi_jensen_verify_triage.py --verify-results xi_jensen_verify_queue_results.csv --rows xi_jensen_dashboard_rows.csv
+{
+  "total_results": 50,
+  "ok": 42,
+  "matches": 29,
+  "mismatches": 13,
+  "failed": 8,
+  "outputs": {
+    "summary_json": "xi_jensen_verify_triage.summary.json",
+    "markdown": "xi_jensen_verify_triage.md",
+    "mismatches_csv": "xi_jensen_verify_triage_mismatches.csv",
+    "failures_csv": "xi_jensen_verify_triage_failures.csv"
+  }
+}
+PS C:\Users\Usuario\Downloads\xi_jensen_opt> type xi_jensen_verify_triage.md
+# Xi-Jensen verification triage
+
+## Totals
+
+- total results: `50`
+- ok: `42`
+- matches: `29`
+- mismatches: `13`
+- failed: `8`
+
+## Mismatch types
+
+- `deficit`: `8`
+- `defect_location`: `11`
+
+## By c
+
+- c=`0.555`: `{'match': 17, 'mismatch': 8, 'failed': 8}`
+- c=`0.56`: `{'match': 12, 'mismatch': 5}`
+
+## By degree bucket
+
+- d=`000-009`: `{'match': 12}`
+- d=`010-019`: `{'match': 12, 'mismatch': 2}`
+- d=`020-029`: `{'mismatch': 6, 'match': 3}`
+- d=`030-039`: `{'mismatch': 3, 'match': 2}`
+- d=`040-049`: `{'mismatch': 2, 'failed': 3}`
+- d=`050-059`: `{'failed': 4}`
+- d=`060-069`: `{'failed': 1}`
+
+## Failure errors
+
+- `8` x `NoConvergence: Didn't converge in maxsteps=300 steps.`
+
+## First mismatches
+
+- c=0.555, n=15, d=19: deficit 19->18, state 0->0, loc endpoint_like->bulk_like, min_im=1.5406294820177864e-08
+- c=0.555, n=16, d=21: deficit 21->20, state 0->0, loc endpoint_like->bulk_like, min_im=3.399985246867284e-07
+- c=0.555, n=17, d=23: deficit 23->22, state 0->0, loc endpoint_like->bulk_like, min_im=4.769659114640409e-07
+- c=0.555, n=21, d=30: deficit 30->30, state 0->0, loc bulk_like->endpoint_like, min_im=9.225577977599128e-06
+- c=0.555, n=23, d=34: deficit 34->34, state 0->0, loc bulk_like->endpoint_like, min_im=0.059974567318003866
+- c=0.555, n=24, d=36: deficit 36->36, state 0->0, loc bulk_like->endpoint_like, min_im=0.05250383415832878
+- c=0.555, n=26, d=40: deficit 40->40, state 0->0, loc bulk_like->endpoint_like, min_im=0.0006190548101802585
+- c=0.555, n=27, d=42: deficit 42->42, state 0->0, loc bulk_like->endpoint_like, min_im=0.0001589162403282853
+- c=0.56, n=15, d=19: deficit 19->18, state 0->0, loc endpoint_like->bulk_like, min_im=1.5406294820177864e-08
+- c=0.56, n=16, d=21: deficit 21->20, state 0->0, loc endpoint_like->bulk_like, min_im=3.399985246867284e-07
+- c=0.56, n=17, d=23: deficit 23->22, state 0->0, loc endpoint_like->bulk_like, min_im=4.769659114640409e-07
+- c=0.56, n=18, d=25: deficit 25->24, state 0->0, loc bulk_like->bulk_like, min_im=4.720542050132313e-05
+- c=0.56, n=19, d=27: deficit 27->26, state 0->0, loc bulk_like->bulk_like, min_im=0.0007410436606639127
+
+## First failures
+
+- c=0.555, n=28, d=45: `NoConvergence: Didn't converge in maxsteps=300 steps.`
+- c=0.555, n=29, d=47: `NoConvergence: Didn't converge in maxsteps=300 steps.`
+- c=0.555, n=30, d=49: `NoConvergence: Didn't converge in maxsteps=300 steps.`
+- c=0.555, n=31, d=51: `NoConvergence: Didn't converge in maxsteps=300 steps.`
+- c=0.555, n=32, d=53: `NoConvergence: Didn't converge in maxsteps=300 steps.`
+- c=0.555, n=33, d=56: `NoConvergence: Didn't converge in maxsteps=300 steps.`
+- c=0.555, n=34, d=58: `NoConvergence: Didn't converge in maxsteps=300 steps.`
+- c=0.555, n=35, d=60: `NoConvergence: Didn't converge in maxsteps=300 steps.`
+PS C:\Users\Usuario\Downloads\xi_jensen_opt> python -c "import csv; rows=list(csv.DictReader(open('xi_jensen_verify_triage_mismatches.csv'))); [print(r) for r in rows[:20]]"
+{'c': '0.555', 'd': '19', 'error': '', 'hi_defect_location': 'bulk_like', 'hi_endpoint_state': '0', 'hi_real_root_deficit': '18', 'lo_defect_location': 'endpoint_like', 'lo_endpoint_state': '0', 'lo_real_root_deficit': '19', 'n': '15', 'seconds': '1.0471328999847174', 'status': 'ok', 'verified_match': 'False'}
+{'c': '0.555', 'd': '21', 'error': '', 'hi_defect_location': 'bulk_like', 'hi_endpoint_state': '0', 'hi_real_root_deficit': '20', 'lo_defect_location': 'endpoint_like', 'lo_endpoint_state': '0', 'lo_real_root_deficit': '21', 'n': '16', 'seconds': '1.444299199996749', 'status': 'ok', 'verified_match': 'False'}
+{'c': '0.555', 'd': '23', 'error': '', 'hi_defect_location': 'bulk_like', 'hi_endpoint_state': '0', 'hi_real_root_deficit': '22', 'lo_defect_location': 'endpoint_like', 'lo_endpoint_state': '0', 'lo_real_root_deficit': '23', 'n': '17', 'seconds': '1.9465787000081036', 'status': 'ok', 'verified_match': 'False'}
+{'c': '0.555', 'd': '30', 'error': '', 'hi_defect_location': 'endpoint_like', 'hi_endpoint_state': '0', 'hi_real_root_deficit': '30', 'lo_defect_location': 'bulk_like', 'lo_endpoint_state': '0', 'lo_real_root_deficit': '30', 'n': '21', 'seconds': '4.760300499998266', 'status': 'ok', 'verified_match': 'False'}
+{'c': '0.555', 'd': '34', 'error': '', 'hi_defect_location': 'endpoint_like', 'hi_endpoint_state': '0', 'hi_real_root_deficit': '34', 'lo_defect_location': 'bulk_like', 'lo_endpoint_state': '0', 'lo_real_root_deficit': '34', 'n': '23', 'seconds': '5.192252000008011', 'status': 'ok', 'verified_match': 'False'}
+{'c': '0.555', 'd': '36', 'error': '', 'hi_defect_location': 'endpoint_like', 'hi_endpoint_state': '0', 'hi_real_root_deficit': '36', 'lo_defect_location': 'bulk_like', 'lo_endpoint_state': '0', 'lo_real_root_deficit': '36', 'n': '24', 'seconds': '4.92658400000073', 'status': 'ok', 'verified_match': 'False'}
+{'c': '0.555', 'd': '40', 'error': '', 'hi_defect_location': 'endpoint_like', 'hi_endpoint_state': '0', 'hi_real_root_deficit': '40', 'lo_defect_location': 'bulk_like', 'lo_endpoint_state': '0', 'lo_real_root_deficit': '40', 'n': '26', 'seconds': '7.931549600005383', 'status': 'ok', 'verified_match': 'False'}
+{'c': '0.555', 'd': '42', 'error': '', 'hi_defect_location': 'endpoint_like', 'hi_endpoint_state': '0', 'hi_real_root_deficit': '42', 'lo_defect_location': 'bulk_like', 'lo_endpoint_state': '0', 'lo_real_root_deficit': '42', 'n': '27', 'seconds': '7.98560409998754', 'status': 'ok', 'verified_match': 'False'}
+{'c': '0.56', 'd': '19', 'error': '', 'hi_defect_location': 'bulk_like', 'hi_endpoint_state': '0', 'hi_real_root_deficit': '18', 'lo_defect_location': 'endpoint_like', 'lo_endpoint_state': '0', 'lo_real_root_deficit': '19', 'n': '15', 'seconds': '0.5449116000090726', 'status': 'ok', 'verified_match': 'False'}
+{'c': '0.56', 'd': '21', 'error': '', 'hi_defect_location': 'bulk_like', 'hi_endpoint_state': '0', 'hi_real_root_deficit': '20', 'lo_defect_location': 'endpoint_like', 'lo_endpoint_state': '0', 'lo_real_root_deficit': '21', 'n': '16', 'seconds': '0.8464948000037111', 'status': 'ok', 'verified_match': 'False'}
+{'c': '0.56', 'd': '23', 'error': '', 'hi_defect_location': 'bulk_like', 'hi_endpoint_state': '0', 'hi_real_root_deficit': '22', 'lo_defect_location': 'endpoint_like', 'lo_endpoint_state': '0', 'lo_real_root_deficit': '23', 'n': '17', 'seconds': '1.4725409999955446', 'status': 'ok', 'verified_match': 'False'}
+{'c': '0.56', 'd': '25', 'error': '', 'hi_defect_location': 'bulk_like', 'hi_endpoint_state': '0', 'hi_real_root_deficit': '24', 'lo_defect_location': 'bulk_like', 'lo_endpoint_state': '0', 'lo_real_root_deficit': '25', 'n': '18', 'seconds': '1.7174252000113484', 'status': 'ok', 'verified_match': 'False'}
+{'c': '0.56', 'd': '27', 'error': '', 'hi_defect_location': 'bulk_like', 'hi_endpoint_state': '0', 'hi_real_root_deficit': '26', 'lo_defect_location': 'bulk_like', 'lo_endpoint_state': '0', 'lo_real_root_deficit': '27', 'n': '19', 'seconds': '1.851287700003013', 'status': 'ok', 'verified_match': 'False'}
+PS C:\Users\Usuario\Downloads\xi_jensen_opt>

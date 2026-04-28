@@ -1,0 +1,283 @@
+PS C:\Users\Usuario\Downloads\xi_jensen_opt> python xi_jensen_certification_status.py --rows xi_jensen_certified_v2_rows.csv
+{
+  "summary": {
+    "row_count": 290,
+    "status_counts": {
+      "unverified": 232,
+      "deepcheck_ok": 58
+    },
+    "source_counts": {
+      "fast_numpy": 232,
+      "deep_scaled_polyroots": 58
+    },
+    "by_c": {
+      "0.555": {
+        "unverified": 31,
+        "deepcheck_ok": 27
+      },
+      "0.56": {
+        "unverified": 34,
+        "deepcheck_ok": 24
+      },
+      "0.565": {
+        "unverified": 51,
+        "deepcheck_ok": 7
+      },
+      "0.57": {
+        "unverified": 58
+      },
+      "0.575": {
+        "unverified": 58
+      }
+    },
+    "by_d_bucket": {
+      "000-009": {
+        "unverified": 30
+      },
+      "010-019": {
+        "unverified": 31,
+        "deepcheck_ok": 2
+      },
+      "020-029": {
+        "deepcheck_ok": 9,
+        "unverified": 18
+      },
+      "030-039": {
+        "deepcheck_ok": 15,
+        "unverified": 9
+      },
+      "040-049": {
+        "deepcheck_ok": 11,
+        "unverified": 12
+      },
+      "050-059": {
+        "deepcheck_ok": 8,
+        "unverified": 13
+      },
+      "060-069": {
+        "deepcheck_ok": 8,
+        "unverified": 12
+      },
+      "070-079": {
+        "deepcheck_ok": 4,
+        "unverified": 16
+      },
+      "080-089": {
+        "deepcheck_ok": 1,
+        "unverified": 18
+      },
+      "090-099": {
+        "unverified": 19
+      },
+      "100-109": {
+        "unverified": 17
+      },
+      "110-119": {
+        "unverified": 18
+      },
+      "120-129": {
+        "unverified": 17
+      },
+      "130-139": {
+        "unverified": 2
+      }
+    },
+    "candidate_count_total": 232,
+    "candidate_preview_count": 50
+  },
+  "outputs": {
+    "summary_json": "xi_jensen_certification_status.summary.json",
+    "markdown": "xi_jensen_certification_status.md",
+    "candidates": "xi_jensen_certification_status_candidates.csv"
+  }
+}
+PS C:\Users\Usuario\Downloads\xi_jensen_opt> python xi_jensen_certification_batch.py --rows xi_jensen_certified_v2_rows.csv --min-n 20 --max-d 80 --limit 25 --append
+Rows loaded: 290
+Rows selected: 25
+Existing skipped: 50
+dps: 200
+max_gamma_index: 125
+solver: scaled
+out: xi_jensen_certification_batch_results.csv
+[cache] miss; computing fresh (max_index=125, dps=200)
+  gamma(0) = 0.4971207782
+  gamma(1) = 0.02297194432
+  gamma(2) = 0.002962848434
+  gamma(3) = 0.0005992959466
+  gamma(4) = 0.0001609665746
+  gamma(5) = 5.303863428e-5
+  gamma(6) = 2.047511521e-5
+  gamma(7) = 8.987755893e-6
+  gamma(8) = 4.393304251e-6
+  gamma(9) = 2.354883384e-6
+  gamma(10) = 1.367986152e-6
+  gamma(11) = 8.533143912e-7
+  gamma(12) = 5.672972476e-7
+  gamma(13) = 3.995048218e-7
+  gamma(14) = 2.964945683e-7
+  gamma(15) = 2.308919955e-7
+  gamma(16) = 1.879671611e-7
+  gamma(17) = 1.594543629e-7
+  gamma(18) = 1.405559917e-7
+  gamma(19) = 1.284233905e-7
+  gamma(20) = 1.213573092e-7
+  gamma(21) = 1.183757713e-7
+  gamma(22) = 1.18978982e-7
+  gamma(23) = 1.230264872e-7
+  gamma(24) = 1.306841881e-7
+  gamma(25) = 1.424212569e-7
+  gamma(26) = 1.590502553e-7
+  gamma(27) = 1.81813165e-7
+  gamma(28) = 2.125247126e-7
+  gamma(29) = 2.537945554e-7
+  gamma(30) = 3.093639339e-7
+  gamma(31) = 3.84613334e-7
+  gamma(32) = 4.873301356e-7
+  gamma(33) = 6.288764515e-7
+  gamma(34) = 8.259792719e-7
+  gamma(35) = 1.103497267e-6
+  gamma(36) = 1.498733886e-6
+  gamma(37) = 2.068219717e-6
+  gamma(38) = 2.898471555e-6
+  gamma(39) = 4.123209902e-6
+  gamma(40) = 5.951153531e-6
+  gamma(41) = 8.711280654e-6
+  gamma(42) = 1.292717334e-5
+  gamma(43) = 1.944018698e-5
+  gamma(44) = 2.961525866e-5
+  gamma(45) = 4.568772404e-5
+  gamma(46) = 7.135268065e-5
+  gamma(47) = 0.0001127748919
+  gamma(48) = 0.0001803336339
+  gamma(49) = 0.000291662042
+  gamma(50) = 0.0004769843071
+  gamma(51) = 0.0007885632356
+  gamma(52) = 0.001317556569
+  gamma(53) = 0.002224328304
+  gamma(54) = 0.003793378491
+  gamma(55) = 0.006533650921
+  gamma(56) = 0.01136309627
+  gamma(57) = 0.01995081071
+  gamma(58) = 0.03535598636
+  gamma(59) = 0.06322990441
+  gamma(60) = 0.1140934881
+  gamma(61) = 0.2076836938
+  gamma(62) = 0.3813065682
+  gamma(63) = 0.7060024466
+  gamma(64) = 1.318045102
+  gamma(65) = 2.480738005
+  gamma(66) = 4.706463559
+  gamma(67) = 8.999333951
+  gamma(68) = 17.34077834
+  gamma(69) = 33.66758267
+  gamma(70) = 65.8544004
+  gamma(71) = 129.7577463
+  gamma(72) = 257.51657
+  gamma(73) = 514.6948158
+  gamma(74) = 1035.900361
+  gamma(75) = 2099.239744
+  gamma(76) = 4282.8773
+  gamma(77) = 8796.172914
+  gamma(78) = 18184.1365
+  gamma(79) = 37834.66485
+  gamma(80) = 79221.67802
+  gamma(81) = 166922.5064
+  gamma(82) = 353885.9556
+  gamma(83) = 754833.5951
+  gamma(84) = 1619725.682
+  gamma(85) = 3496213.295
+  gamma(86) = 7590761.584
+  gamma(87) = 16575606.41
+  gamma(88) = 36401280.98
+  gamma(89) = 80388592.16
+  gamma(90) = 178513407.5
+  gamma(91) = 398579385.3
+  gamma(92) = 894738364.3
+  gamma(93) = 2019225828.0
+  gamma(94) = 4580916748.0
+  gamma(95) = 1.044648809e+10
+  gamma(96) = 2.394478914e+10
+  gamma(97) = 5.516295415e+10
+  gamma(98) = 1.277183859e+11
+  gamma(99) = 2.971686076e+11
+  gamma(100) = 6.94817586e+11
+  gamma(101) = 1.632421665e+12
+  gamma(102) = 3.853571444e+12
+  gamma(103) = 9.139877047e+12
+  gamma(104) = 2.177910457e+13
+  gamma(105) = 5.213624559e+13
+  gamma(106) = 1.25376852e+14
+  gamma(107) = 3.028664069e+14
+  gamma(108) = 7.348855179e+14
+  gamma(109) = 1.79102746e+15
+  gamma(110) = 4.384078474e+15
+  gamma(111) = 1.077774404e+16
+  gamma(112) = 2.660916378e+16
+  gamma(113) = 6.597343978e+16
+  gamma(114) = 1.642565385e+17
+  gamma(115) = 4.106513894e+17
+  gamma(116) = 1.030867446e+18
+  gamma(117) = 2.598324566e+18
+  gamma(118) = 6.57548055e+18
+  gamma(119) = 1.670659406e+19
+  gamma(120) = 4.261453781e+19
+  gamma(121) = 1.091240572e+20
+  gamma(122) = 2.805174e+20
+  gamma(123) = 7.238685215e+20
+  gamma(124) = 1.875013735e+21
+  gamma(125) = 4.875045319e+21
+[1/25] deepchecking c=0.56 n=39 d=71 status=unverified ...
+[2/25] deepchecking c=0.56 n=40 d=73 status=unverified ...
+[3/25] deepchecking c=0.56 n=41 d=76 status=unverified ...
+[4/25] deepchecking c=0.56 n=42 d=78 status=unverified ...
+[5/25] deepchecking c=0.565 n=27 d=43 status=unverified ...
+[6/25] deepchecking c=0.565 n=28 d=45 status=unverified ...
+[7/25] deepchecking c=0.565 n=29 d=48 status=unverified ...
+[8/25] deepchecking c=0.565 n=30 d=50 status=unverified ...
+[9/25] deepchecking c=0.565 n=31 d=52 status=unverified ...
+[10/25] deepchecking c=0.565 n=32 d=54 status=unverified ...
+[11/25] deepchecking c=0.565 n=33 d=57 status=unverified ...
+[12/25] deepchecking c=0.565 n=34 d=59 status=unverified ...
+[13/25] deepchecking c=0.565 n=35 d=62 status=unverified ...
+[14/25] deepchecking c=0.565 n=36 d=64 status=unverified ...
+[15/25] deepchecking c=0.565 n=37 d=66 status=unverified ...
+[16/25] deepchecking c=0.565 n=38 d=69 status=unverified ...
+[17/25] deepchecking c=0.565 n=39 d=71 status=unverified ...
+[18/25] deepchecking c=0.565 n=40 d=74 status=unverified ...
+[19/25] deepchecking c=0.565 n=41 d=76 status=unverified ...
+[20/25] deepchecking c=0.565 n=42 d=79 status=unverified ...
+[21/25] deepchecking c=0.57 n=20 d=29 status=unverified ...
+[22/25] deepchecking c=0.57 n=21 d=31 status=unverified ...
+[23/25] deepchecking c=0.57 n=22 d=33 status=unverified ...
+[24/25] deepchecking c=0.57 n=23 d=35 status=unverified ...
+[25/25] deepchecking c=0.57 n=24 d=37 status=unverified ...
+
+Done.
+{
+  "input_rows": "xi_jensen_certified_v2_rows.csv",
+  "out": "xi_jensen_certification_batch_results.csv",
+  "rows_loaded": 290,
+  "rows_selected_this_batch": 25,
+  "existing_skipped": 50,
+  "ok_this_batch": 25,
+  "failed_this_batch": 0,
+  "match_current_cert_this_batch": 4,
+  "changed_current_cert_this_batch": 21,
+  "total_output_rows": 75,
+  "elapsed_seconds": 2045.4855369000006,
+  "config": {
+    "status": "unverified",
+    "c_values": null,
+    "min_n": 20,
+    "max_n": null,
+    "min_d": null,
+    "max_d": 80,
+    "limit": 25,
+    "dps": 200,
+    "max_gamma_index": 125,
+    "tol": 1e-08,
+    "maxsteps": 1000,
+    "extraprec": 150,
+    "solver": "scaled",
+    "append": true
+  }
