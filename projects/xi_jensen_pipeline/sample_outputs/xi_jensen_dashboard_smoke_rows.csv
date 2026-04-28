@@ -1,0 +1,3 @@
+c,n,d,c_nd,real_root_deficit,endpoint_state,defect_location,min_nonreal_abs_imag,sensitive,verified,verified_match,hi_real_root_deficit,hi_endpoint_state,hi_defect_location
+0.555,3,2,0.4034319968705745,2,0,endpoint_like,1.4452194366123798,False,False,,,,
+0.555,4,3,0.44152875844330297,2,0,bulk_like,1.5265071015297715,False,False,,,,

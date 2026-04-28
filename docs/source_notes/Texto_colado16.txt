@@ -1,0 +1,170 @@
+
+=== done ===
+total time: 0.5s
+Wrote xi_jensen_dashboard_rows.csv
+Wrote xi_jensen_dashboard_frontier.csv
+Wrote xi_jensen_dashboard_summary.json
+Wrote xi_jensen_dashboard_report.md
+PS C:\Users\Usuario\Downloads\xi_jensen_opt> python xi_jensen_verify_queue.py --rows xi_jensen_dashboard_rows.csv --max-d 60 --limit 50
+Rows loaded: 290
+Rows selected: 50
+dps: 150
+max_gamma_index: 99
+max_d gate: 60
+[cache] miss; computing fresh (max_index=99, dps=150)
+  gamma(0) = 0.4971207782
+  gamma(1) = 0.02297194432
+  gamma(2) = 0.002962848434
+  gamma(3) = 0.0005992959466
+  gamma(4) = 0.0001609665746
+  gamma(5) = 5.303863428e-5
+  gamma(6) = 2.047511521e-5
+  gamma(7) = 8.987755893e-6
+  gamma(8) = 4.393304251e-6
+  gamma(9) = 2.354883384e-6
+  gamma(10) = 1.367986152e-6
+  gamma(11) = 8.533143912e-7
+  gamma(12) = 5.672972476e-7
+  gamma(13) = 3.995048218e-7
+  gamma(14) = 2.964945683e-7
+  gamma(15) = 2.308919955e-7
+  gamma(16) = 1.879671611e-7
+  gamma(17) = 1.594543629e-7
+  gamma(18) = 1.405559917e-7
+  gamma(19) = 1.284233905e-7
+  gamma(20) = 1.213573092e-7
+  gamma(21) = 1.183757713e-7
+  gamma(22) = 1.18978982e-7
+  gamma(23) = 1.230264872e-7
+  gamma(24) = 1.306841881e-7
+  gamma(25) = 1.424212569e-7
+  gamma(26) = 1.590502553e-7
+  gamma(27) = 1.81813165e-7
+  gamma(28) = 2.125247126e-7
+  gamma(29) = 2.537945554e-7
+  gamma(30) = 3.093639339e-7
+  gamma(31) = 3.84613334e-7
+  gamma(32) = 4.873301356e-7
+  gamma(33) = 6.288764515e-7
+  gamma(34) = 8.259792719e-7
+  gamma(35) = 1.103497267e-6
+  gamma(36) = 1.498733886e-6
+  gamma(37) = 2.068219717e-6
+  gamma(38) = 2.898471555e-6
+  gamma(39) = 4.123209902e-6
+  gamma(40) = 5.951153531e-6
+  gamma(41) = 8.711280654e-6
+  gamma(42) = 1.292717334e-5
+  gamma(43) = 1.944018698e-5
+  gamma(44) = 2.961525866e-5
+  gamma(45) = 4.568772404e-5
+  gamma(46) = 7.135268065e-5
+  gamma(47) = 0.0001127748919
+  gamma(48) = 0.0001803336339
+  gamma(49) = 0.000291662042
+  gamma(50) = 0.0004769843071
+  gamma(51) = 0.0007885632356
+  gamma(52) = 0.001317556569
+  gamma(53) = 0.002224328304
+  gamma(54) = 0.003793378491
+  gamma(55) = 0.006533650921
+  gamma(56) = 0.01136309627
+  gamma(57) = 0.01995081071
+  gamma(58) = 0.03535598636
+  gamma(59) = 0.06322990441
+  gamma(60) = 0.1140934881
+  gamma(61) = 0.2076836938
+  gamma(62) = 0.3813065682
+  gamma(63) = 0.7060024466
+  gamma(64) = 1.318045102
+  gamma(65) = 2.480738005
+  gamma(66) = 4.706463559
+  gamma(67) = 8.999333951
+  gamma(68) = 17.34077834
+  gamma(69) = 33.66758267
+  gamma(70) = 65.8544004
+  gamma(71) = 129.7577463
+  gamma(72) = 257.51657
+  gamma(73) = 514.6948158
+  gamma(74) = 1035.900361
+  gamma(75) = 2099.239744
+  gamma(76) = 4282.8773
+  gamma(77) = 8796.172914
+  gamma(78) = 18184.1365
+  gamma(79) = 37834.66485
+  gamma(80) = 79221.67802
+  gamma(81) = 166922.5064
+  gamma(82) = 353885.9556
+  gamma(83) = 754833.5951
+  gamma(84) = 1619725.682
+  gamma(85) = 3496213.295
+  gamma(86) = 7590761.584
+  gamma(87) = 16575606.41
+  gamma(88) = 36401280.98
+  gamma(89) = 80388592.16
+  gamma(90) = 178513407.5
+  gamma(91) = 398579385.3
+  gamma(92) = 894738364.3
+  gamma(93) = 2019225828.0
+  gamma(94) = 4580916748.0
+  gamma(95) = 1.044648809e+10
+  gamma(96) = 2.394478914e+10
+  gamma(97) = 5.516295415e+10
+  gamma(98) = 1.277183859e+11
+  gamma(99) = 2.971686076e+11
+[1/50] verifying c=0.555, n=3, d=2 ...
+[2/50] verifying c=0.555, n=4, d=3 ...
+[3/50] verifying c=0.555, n=5, d=4 ...
+[4/50] verifying c=0.555, n=6, d=6 ...
+[5/50] verifying c=0.555, n=7, d=7 ...
+[6/50] verifying c=0.555, n=8, d=8 ...
+[7/50] verifying c=0.555, n=9, d=10 ...
+[8/50] verifying c=0.555, n=10, d=11 ...
+[9/50] verifying c=0.555, n=11, d=13 ...
+[10/50] verifying c=0.555, n=12, d=14 ...
+[11/50] verifying c=0.555, n=13, d=16 ...
+[12/50] verifying c=0.555, n=14, d=17 ...
+[13/50] verifying c=0.555, n=15, d=19 ...
+[14/50] verifying c=0.555, n=16, d=21 ...
+[15/50] verifying c=0.555, n=17, d=23 ...
+[16/50] verifying c=0.555, n=18, d=24 ...
+[17/50] verifying c=0.555, n=19, d=26 ...
+[18/50] verifying c=0.555, n=20, d=28 ...
+[19/50] verifying c=0.555, n=21, d=30 ...
+[20/50] verifying c=0.555, n=22, d=32 ...
+[21/50] verifying c=0.555, n=23, d=34 ...
+[22/50] verifying c=0.555, n=24, d=36 ...
+[23/50] verifying c=0.555, n=25, d=38 ...
+[24/50] verifying c=0.555, n=26, d=40 ...
+[25/50] verifying c=0.555, n=27, d=42 ...
+[26/50] verifying c=0.555, n=28, d=45 ...
+[27/50] verifying c=0.555, n=29, d=47 ...
+[28/50] verifying c=0.555, n=30, d=49 ...
+[29/50] verifying c=0.555, n=31, d=51 ...
+[30/50] verifying c=0.555, n=32, d=53 ...
+[31/50] verifying c=0.555, n=33, d=56 ...
+[32/50] verifying c=0.555, n=34, d=58 ...
+[33/50] verifying c=0.555, n=35, d=60 ...
+[34/50] verifying c=0.56, n=3, d=2 ...
+[35/50] verifying c=0.56, n=4, d=3 ...
+[36/50] verifying c=0.56, n=5, d=4 ...
+[37/50] verifying c=0.56, n=6, d=6 ...
+[38/50] verifying c=0.56, n=7, d=7 ...
+[39/50] verifying c=0.56, n=8, d=8 ...
+[40/50] verifying c=0.56, n=9, d=10 ...
+[41/50] verifying c=0.56, n=10, d=11 ...
+[42/50] verifying c=0.56, n=11, d=13 ...
+[43/50] verifying c=0.56, n=12, d=14 ...
+[44/50] verifying c=0.56, n=13, d=16 ...
+[45/50] verifying c=0.56, n=14, d=18 ...
+[46/50] verifying c=0.56, n=15, d=19 ...
+[47/50] verifying c=0.56, n=16, d=21 ...
+[48/50] verifying c=0.56, n=17, d=23 ...
+[49/50] verifying c=0.56, n=18, d=25 ...
+[50/50] verifying c=0.56, n=19, d=27 ...
+
+Done in 665.41s
+ok=42, failed=8, mismatches=13
+Wrote xi_jensen_verify_queue_results.csv
+Wrote xi_jensen_verify_queue_summary.json
+PS C:\Users\Usuario\Downloads\xi_jensen_opt>
