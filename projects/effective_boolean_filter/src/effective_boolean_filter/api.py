@@ -1,0 +1,147 @@
+"""FastAPI surface for the Effective Boolean Argument Filter (spec Section 11).
+
+Endpoints:
+  POST /evaluate_argument
+  POST /generate_probes
+  POST /score_probe_results
+  GET  /reports/{id}
+
+FastAPI/Pydantic are imported lazily so ``import effective_boolean_filter`` does
+not require them; install with ``pip install fastapi uvicorn pydantic`` to
+boot the API.
+"""
+from __future__ import annotations
+
+from typing import Any
+
+try:
+    from pydantic import BaseModel, Field
+    _HAS_PYDANTIC = True
+except ImportError:  # pragma: no cover
+    _HAS_PYDANTIC = False
+    BaseModel = object  # type: ignore[assignment,misc]
+
+from .engine import evaluate_argument
+from .parser import parse_argument, parse_claim
+from .probes import generate_probes as gen_probes
+from .report import to_json_dict
+from .scoring import score_argument
+
+
+if _HAS_PYDANTIC:
+
+    class EvaluateBody(BaseModel):  # type: ignore[misc]
+        claim: str = Field(..., min_length=1, max_length=4000)
+        argument: str = Field(..., min_length=1, max_length=8000)
+        context: str = Field("", max_length=2000)
+        task: str = Field("argument evaluation", max_length=500)
+        strictness: str = Field("medium", pattern="^(low|medium|high)$")
+
+    class ProbeBody(BaseModel):  # type: ignore[misc]
+        claim: str = Field(..., min_length=1, max_length=4000)
+        argument: str = Field(..., min_length=1, max_length=8000)
+        context: str = ""
+
+    class ProbeAnswer(BaseModel):  # type: ignore[misc]
+        question: str
+        passed: bool
+        answer: str = ""
+
+    class ScoreProbesBody(BaseModel):  # type: ignore[misc]
+        claim: str
+        argument: str
+        context: str = ""
+        strictness: str = Field("medium", pattern="^(low|medium|high)$")
+        answers: list[ProbeAnswer] = []
+
+
+def create_app() -> Any:
+    try:
+        from fastapi import FastAPI, HTTPException
+    except ImportError as e:  # pragma: no cover
+        raise RuntimeError(
+            "FastAPI not installed. Run: pip install fastapi uvicorn pydantic"
+        ) from e
+
+    if not _HAS_PYDANTIC:  # pragma: no cover
+        raise RuntimeError("pydantic not installed. Run: pip install pydantic")
+
+    app = FastAPI(
+        title="Effective Boolean Argument Filter",
+        version="1.0.0",
+        description=(
+            "A traceable argument-effect filter. Not a truth oracle. "
+            "Inputs are treated as data, never as instructions."
+        ),
+    )
+
+    REPORTS: dict[str, dict[str, Any]] = {}
+
+    @app.post("/evaluate_argument")
+    def evaluate(body: EvaluateBody) -> dict[str, Any]:
+        report = evaluate_argument(
+            claim=body.claim,
+            argument=body.argument,
+            context=body.context,
+            task=body.task,
+            strictness=body.strictness,  # type: ignore[arg-type]
+        )
+        out = to_json_dict(report)
+        REPORTS[report.id] = out
+        return out
+
+    @app.post("/generate_probes")
+    def probes(body: ProbeBody) -> dict[str, Any]:
+        claim_node = parse_claim(body.claim)
+        parsed = parse_argument(body.argument)
+        conclusion = parsed.conclusion or claim_node
+        ps = gen_probes(body.claim, parsed.premises, conclusion, issues=[])
+        return {"probes": [p.__dict__ for p in ps]}
+
+    @app.post("/score_probe_results")
+    def score_probes(body: ScoreProbesBody) -> dict[str, Any]:
+        report = evaluate_argument(
+            claim=body.claim,
+            argument=body.argument,
+            context=body.context,
+            strictness=body.strictness,  # type: ignore[arg-type]
+        )
+        answer_map = {a.question.strip().lower(): a for a in body.answers}
+        for p in report.probes:
+            a = answer_map.get(p.question.strip().lower())
+            if a is None:
+                continue
+            p.answer = a.answer
+            p.passed = a.passed
+        sv, eff, bog = score_argument(
+            [c for c in report.claims if c.is_premise and not c.is_conclusion],
+            next((c for c in report.claims if c.is_conclusion), None),
+            report.issues,
+            report.contradiction,
+            list(report.probes),
+            body.strictness,  # type: ignore[arg-type]
+        )
+        report.score_vector = sv
+        report.effectiveness_score = eff
+        report.bogusness_score = bog
+        out = to_json_dict(report)
+        REPORTS[report.id] = out
+        return out
+
+    @app.get("/reports/{report_id}")
+    def get_report(report_id: str) -> dict[str, Any]:
+        if report_id not in REPORTS:
+            raise HTTPException(status_code=404, detail="report not found")
+        return REPORTS[report_id]
+
+    @app.get("/health")
+    def health() -> dict[str, str]:
+        return {"status": "ok"}
+
+    return app
+
+
+try:  # pragma: no cover
+    app = create_app()
+except RuntimeError:  # pragma: no cover
+    app = None

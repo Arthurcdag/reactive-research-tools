@@ -1,0 +1,95 @@
+"""API smoke test (spec section 11). Skips cleanly when FastAPI is not installed."""
+from __future__ import annotations
+
+import pytest
+
+pytest.importorskip("fastapi")
+pytest.importorskip("pydantic")
+
+
+def _client():
+    from fastapi.testclient import TestClient
+    from src.effective_boolean_filter.api import create_app
+    return TestClient(create_app())
+
+
+def test_evaluate_endpoint_returns_full_shape():
+    client = _client()
+    r = client.post(
+        "/evaluate_argument",
+        json={
+            "claim": "X is true",
+            "argument": "There is no evidence against X, therefore X is true",
+            "context": "science",
+            "strictness": "medium",
+        },
+    )
+    assert r.status_code == 200
+    body = r.json()
+    for key in (
+        "id", "effective_polarity", "effectiveness_score", "bogusness_score",
+        "score_vector", "trace", "issues", "probes", "contradiction",
+        "recommendation",
+    ):
+        assert key in body
+    assert body["effective_polarity"] in {"untracked_shift", "unstable"}
+
+
+def test_get_report_round_trip():
+    client = _client()
+    r = client.post(
+        "/evaluate_argument",
+        json={"claim": "P", "argument": "P. Therefore P."},
+    )
+    rid = r.json()["id"]
+    r2 = client.get(f"/reports/{rid}")
+    assert r2.status_code == 200
+    assert r2.json()["id"] == rid
+
+
+def test_get_report_404():
+    client = _client()
+    r = client.get("/reports/does-not-exist")
+    assert r.status_code == 404
+
+
+def test_generate_probes_endpoint():
+    client = _client()
+    r = client.post(
+        "/generate_probes",
+        json={"claim": "X is true", "argument": "There is no evidence against X, therefore X is true"},
+    )
+    assert r.status_code == 200
+    assert len(r.json()["probes"]) >= 3
+
+
+def test_score_probe_results_changes_score():
+    client = _client()
+    base = client.post(
+        "/evaluate_argument",
+        json={"claim": "P", "argument": "P. Therefore P."},
+    ).json()
+    r = client.post(
+        "/score_probe_results",
+        json={
+            "claim": "P",
+            "argument": "P. Therefore P.",
+            "answers": [
+                {"question": "What concrete observation or experiment would falsify the claim?",
+                 "passed": True, "answer": "running unit test fails"},
+            ],
+        },
+    )
+    assert r.status_code == 200
+    # answering a probe positively should not lower the score
+    assert r.json()["effectiveness_score"] >= base["effectiveness_score"] - 0.1
+
+
+def test_health():
+    assert _client().get("/health").json()["status"] == "ok"
+
+
+def test_input_validation_rejects_empty_claim():
+    client = _client()
+    r = client.post("/evaluate_argument", json={"claim": "", "argument": "P. Therefore P."})
+    assert r.status_code == 422
