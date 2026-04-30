@@ -7,24 +7,33 @@
 - [x] MVP CLI
 - [x] Initial parser
 - [x] Initial polarity/scoring engine
-- [ ] Robust JSON schema
-- [ ] 50-case benchmark
+- [x] Robust JSON schema
+- [x] Negation parity invariants
 
 ### Sprint 2: Scope and contradiction
-- [ ] Scope tracker
-- [ ] Definition-shift detector
-- [ ] Contradiction containment
-- [ ] No-explosion behavior
+- [x] Scope tracker
+- [x] Definition-shift detector
+- [x] Contradiction containment
+- [x] No-explosion behavior
 
 ### Sprint 3: Reactive probes
-- [ ] Probe generator expansion
-- [ ] Probe scoring
-- [ ] Effectiveness-score calibration
+- [x] Probe generator expansion
+- [x] Probe scoring
+- [x] Effectiveness-score calibration
 
-### Sprint 4: API/UI
-- [ ] FastAPI endpoints
-- [ ] Report storage
-- [ ] Dashboard
+### Sprint 4: API/CLI
+- [x] FastAPI endpoints
+- [x] Report storage
+- [x] CLI JSON/human output
+- [x] Dashboard
+
+### Sprint 5: Benchmarks
+- [x] 50+ case benchmark
+- [x] Regression tests
+- [x] CI workflow
+
+### Deferred
+- [ ] LLM advisory parser/probe wrapper behind structured validation
 
 ## Xi–Jensen Pipeline
 

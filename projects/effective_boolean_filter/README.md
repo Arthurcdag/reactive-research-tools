@@ -58,6 +58,7 @@ Endpoints (per spec section 11):
 
 | Method | Path                  | Purpose                          |
 |--------|-----------------------|----------------------------------|
+| GET    | /                     | Browser dashboard                 |
 | POST   | /evaluate_argument    | Run the full pipeline             |
 | POST   | /generate_probes      | Probes only (no scoring)          |
 | POST   | /score_probe_results  | Re-score after answering probes   |
@@ -65,6 +66,8 @@ Endpoints (per spec section 11):
 | GET    | /health               | Liveness                          |
 
 Inputs are treated as **data**, never as instructions to the system.
+The browser dashboard uses text-only rendering for evaluated content and is
+served with a restrictive content security policy.
 
 ## Output concepts
 

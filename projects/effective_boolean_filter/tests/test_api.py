@@ -35,6 +35,19 @@ def test_evaluate_endpoint_returns_full_shape():
     assert body["effective_polarity"] in {"untracked_shift", "unstable"}
 
 
+def test_dashboard_root_serves_html():
+    client = _client()
+    r = client.get("/")
+    assert r.status_code == 200
+    assert "text/html" in r.headers["content-type"]
+    assert "default-src 'none'" in r.headers["content-security-policy"]
+    assert "frame-ancestors 'none'" in r.headers["content-security-policy"]
+    assert r.headers["x-content-type-options"] == "nosniff"
+    assert r.headers["referrer-policy"] == "no-referrer"
+    assert "Effective Boolean Filter" in r.text
+    assert "/evaluate_argument" in r.text
+
+
 def test_get_report_round_trip():
     client = _client()
     r = client.post(
@@ -92,4 +105,13 @@ def test_health():
 def test_input_validation_rejects_empty_claim():
     client = _client()
     r = client.post("/evaluate_argument", json={"claim": "", "argument": "P. Therefore P."})
+    assert r.status_code == 422
+
+
+def test_score_probe_results_validation_rejects_empty_claim():
+    client = _client()
+    r = client.post(
+        "/score_probe_results",
+        json={"claim": "", "argument": "P. Therefore P.", "answers": []},
+    )
     assert r.status_code == 422

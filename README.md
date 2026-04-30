@@ -92,6 +92,24 @@ python projects/effective_boolean_filter/cli.py \
   --context "scientific argument"
 ```
 
+Run the Effective Boolean Filter API and dashboard:
+
+```bash
+python -m uvicorn effective_boolean_filter.api:app \
+  --app-dir projects/effective_boolean_filter/src \
+  --reload
+```
+
+Then open:
+
+```text
+http://127.0.0.1:8000/
+```
+
+The dashboard is served with a restrictive content security policy and
+localhost binding by default. Keep that binding unless you intentionally
+want to expose the API on a network.
+
 Run the Xi–Jensen dashboard if the corresponding generated scripts and dependencies are present:
 
 ```bash
