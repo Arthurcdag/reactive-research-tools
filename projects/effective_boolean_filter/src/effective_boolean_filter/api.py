@@ -4,6 +4,7 @@ Endpoints:
   POST /evaluate_argument
   POST /generate_probes
   POST /score_probe_results
+  GET  /
   GET  /reports/{id}
 
 FastAPI/Pydantic are imported lazily so ``import effective_boolean_filter`` does
@@ -12,6 +13,7 @@ boot the API.
 """
 from __future__ import annotations
 
+import secrets
 from typing import Any
 
 try:
@@ -22,6 +24,7 @@ except ImportError:  # pragma: no cover
     BaseModel = object  # type: ignore[assignment,misc]
 
 from .engine import evaluate_argument
+from .dashboard import render_dashboard_html
 from .parser import parse_argument, parse_claim
 from .probes import generate_probes as gen_probes
 from .report import to_json_dict
@@ -40,24 +43,25 @@ if _HAS_PYDANTIC:
     class ProbeBody(BaseModel):  # type: ignore[misc]
         claim: str = Field(..., min_length=1, max_length=4000)
         argument: str = Field(..., min_length=1, max_length=8000)
-        context: str = ""
+        context: str = Field("", max_length=2000)
 
     class ProbeAnswer(BaseModel):  # type: ignore[misc]
-        question: str
+        question: str = Field(..., min_length=1, max_length=1000)
         passed: bool
-        answer: str = ""
+        answer: str = Field("", max_length=4000)
 
     class ScoreProbesBody(BaseModel):  # type: ignore[misc]
-        claim: str
-        argument: str
-        context: str = ""
+        claim: str = Field(..., min_length=1, max_length=4000)
+        argument: str = Field(..., min_length=1, max_length=8000)
+        context: str = Field("", max_length=2000)
         strictness: str = Field("medium", pattern="^(low|medium|high)$")
-        answers: list[ProbeAnswer] = []
+        answers: list[ProbeAnswer] = Field(default_factory=list, max_length=20)
 
 
 def create_app() -> Any:
     try:
         from fastapi import FastAPI, HTTPException
+        from fastapi.responses import HTMLResponse
     except ImportError as e:  # pragma: no cover
         raise RuntimeError(
             "FastAPI not installed. Run: pip install fastapi uvicorn pydantic"
@@ -76,6 +80,33 @@ def create_app() -> Any:
     )
 
     REPORTS: dict[str, dict[str, Any]] = {}
+
+    @app.middleware("http")
+    async def add_security_headers(request: Any, call_next: Any) -> Any:
+        response = await call_next(request)
+        response.headers["X-Content-Type-Options"] = "nosniff"
+        response.headers["Referrer-Policy"] = "no-referrer"
+        response.headers["Permissions-Policy"] = (
+            "camera=(), microphone=(), geolocation=(), payment=()"
+        )
+        return response
+
+    @app.get("/", response_class=HTMLResponse)
+    def dashboard() -> HTMLResponse:
+        nonce = secrets.token_urlsafe(16)
+        response = HTMLResponse(render_dashboard_html(nonce))
+        response.headers["Content-Security-Policy"] = (
+            "default-src 'none'; "
+            f"script-src 'nonce-{nonce}'; "
+            f"style-src 'nonce-{nonce}'; "
+            "connect-src 'self'; "
+            "base-uri 'none'; "
+            "form-action 'self'; "
+            "frame-ancestors 'none'"
+        )
+        response.headers["Cache-Control"] = "no-store"
+        return response
+
 
     @app.post("/evaluate_argument")
     def evaluate(body: EvaluateBody) -> dict[str, Any]:
