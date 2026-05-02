@@ -35,6 +35,7 @@
     "projects/effective_boolean_filter/src/effective_boolean_filter/scope.py",
     "projects/effective_boolean_filter/src/effective_boolean_filter/scoring.py",
     "projects/effective_boolean_filter/tests/test_api.py",
+    "projects/effective_boolean_filter/tests/test_api_validation.py",
     "projects/effective_boolean_filter/tests/test_benchmarks.py",
     "projects/effective_boolean_filter/tests/test_contradiction_containment.py",
     "projects/effective_boolean_filter/tests/test_negation_parity.py",
