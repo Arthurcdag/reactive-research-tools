@@ -58,12 +58,13 @@ rate limiting.
 
 ## Immediate Next Tasks
 
-1. Add durable report storage.
-   - Current API stores reports in an in-memory `REPORTS` dict.
-   - Add a storage abstraction with an in-memory default and a file-backed
-     implementation for local runs.
-   - Tests should cover report round-trip after app recreation when using the
-     file-backed store.
+1. ~~Add durable report storage.~~ ✅ Shipped on branch `codex/report-storage`.
+   - `storage.py` provides `InMemoryStore` (default) and `FileStore`.
+   - Selected via the `EBF_REPORT_STORE` env var: unset/`memory` or
+     `file:/path/to/dir`.
+   - `create_app(store=...)` lets tests inject a backend explicitly.
+   - Round-trip persistence across app recreation is covered in
+     `tests/test_api.py::test_file_store_persists_across_app_recreation`.
 
 2. Improve dashboard usability without adding a frontend build step.
    - Add sample presets for common cases: clean double negation, epistemic

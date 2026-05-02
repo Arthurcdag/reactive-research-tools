@@ -69,6 +69,26 @@ Inputs are treated as **data**, never as instructions to the system.
 The browser dashboard uses text-only rendering for evaluated content and is
 served with a restrictive content security policy.
 
+### Report storage
+
+Evaluation reports are kept in a swappable backend. Configure via the
+`EBF_REPORT_STORE` env var:
+
+| Value                | Backend           | Notes                                    |
+|----------------------|-------------------|------------------------------------------|
+| (unset) / `memory`   | `InMemoryStore`   | Default. Ephemeral; lost on restart.     |
+| `file:/path/to/dir`  | `FileStore`       | One JSON file per report; atomic write.  |
+
+Example:
+
+```bash
+EBF_REPORT_STORE=file:/var/lib/ebf-reports \
+  uvicorn effective_boolean_filter.api:app --host 127.0.0.1 --port 8000
+```
+
+`create_app(store=...)` accepts an explicit store instance for tests and
+custom backends.
+
 ## Output concepts
 
 Polarity values: `effective_yes`, `effective_no`, `unknown`, `unstable`, `untracked_shift`, `contradiction`.

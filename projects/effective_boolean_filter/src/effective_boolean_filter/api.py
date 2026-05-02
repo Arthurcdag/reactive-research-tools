@@ -29,6 +29,7 @@ from .parser import parse_argument, parse_claim
 from .probes import generate_probes as gen_probes
 from .report import to_json_dict
 from .scoring import score_argument
+from .storage import ReportStore, get_store
 
 
 if _HAS_PYDANTIC:
@@ -58,7 +59,13 @@ if _HAS_PYDANTIC:
         answers: list[ProbeAnswer] = Field(default_factory=list, max_length=20)
 
 
-def create_app() -> Any:
+def create_app(store: ReportStore | None = None) -> Any:
+    """Build the FastAPI app.
+
+    ``store`` selects the report backend. When omitted, the store is
+    resolved from the ``EBF_REPORT_STORE`` env var via :func:`get_store`.
+    Tests pass an explicit store to avoid env coupling.
+    """
     try:
         from fastapi import FastAPI, HTTPException
         from fastapi.responses import HTMLResponse
@@ -79,7 +86,8 @@ def create_app() -> Any:
         ),
     )
 
-    REPORTS: dict[str, dict[str, Any]] = {}
+    reports: ReportStore = store if store is not None else get_store()
+    app.state.report_store = reports
 
     @app.middleware("http")
     async def add_security_headers(request: Any, call_next: Any) -> Any:
@@ -118,7 +126,7 @@ def create_app() -> Any:
             strictness=body.strictness,  # type: ignore[arg-type]
         )
         out = to_json_dict(report)
-        REPORTS[report.id] = out
+        reports.put(report.id, out)
         return out
 
     @app.post("/generate_probes")
@@ -156,14 +164,18 @@ def create_app() -> Any:
         report.effectiveness_score = eff
         report.bogusness_score = bog
         out = to_json_dict(report)
-        REPORTS[report.id] = out
+        reports.put(report.id, out)
         return out
 
     @app.get("/reports/{report_id}")
     def get_report(report_id: str) -> dict[str, Any]:
-        if report_id not in REPORTS:
+        try:
+            stored = reports.get(report_id)
+        except ValueError:
+            raise HTTPException(status_code=400, detail="invalid report id")
+        if stored is None:
             raise HTTPException(status_code=404, detail="report not found")
-        return REPORTS[report_id]
+        return stored
 
     @app.get("/health")
     def health() -> dict[str, str]:
