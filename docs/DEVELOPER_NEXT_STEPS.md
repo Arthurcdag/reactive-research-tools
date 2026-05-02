@@ -72,11 +72,15 @@ rate limiting.
    - Add a compact score-vector table.
    - Add a copy JSON button only if clipboard usage is explicit and visible.
 
-3. Add API error tests.
-   - Cover over-length claim and argument bodies.
-   - Cover invalid strictness.
-   - Cover malformed probe answers.
-   - Verify dashboard security headers remain present on `GET /`.
+3. ~~Add API error tests.~~ ✅ Shipped on branch `codex/api-error-tests`.
+   - `tests/test_api_validation.py` (52 tests) covers: over-length
+     claim/argument/context/task/probe-answer bodies, the strictness
+     whitelist (case-sensitive, with wrong-type rejection), malformed
+     probe answers (missing fields, wrong types, empty question,
+     non-list `answers`), generic missing/non-JSON/wrong-type bodies,
+     CSP regression (all 7 directives + per-response nonce + cache),
+     extra security headers, middleware coverage on non-dashboard
+     endpoints, plus 404/405 surface.
 
 4. Add a public-sharing deployment checklist.
    - Include auth, rate limiting, logging, data retention, HTTPS, and CORS.
