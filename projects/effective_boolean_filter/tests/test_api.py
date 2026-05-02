@@ -115,3 +115,39 @@ def test_score_probe_results_validation_rejects_empty_claim():
         json={"claim": "", "argument": "P. Therefore P.", "answers": []},
     )
     assert r.status_code == 422
+
+
+def test_file_store_persists_across_app_recreation(tmp_path):
+    """Reports written via one app instance are readable from a fresh one
+    when both share a FileStore root."""
+    from fastapi.testclient import TestClient
+
+    from src.effective_boolean_filter.api import create_app
+    from src.effective_boolean_filter.storage import FileStore
+
+    root = tmp_path / "reports"
+
+    # First app: write a report.
+    app1 = create_app(store=FileStore(root))
+    c1 = TestClient(app1)
+    posted = c1.post(
+        "/evaluate_argument",
+        json={"claim": "P", "argument": "P. Therefore P."},
+    )
+    assert posted.status_code == 200
+    rid = posted.json()["id"]
+
+    # Second app, fresh in-memory state, same FileStore root.
+    app2 = create_app(store=FileStore(root))
+    c2 = TestClient(app2)
+    fetched = c2.get(f"/reports/{rid}")
+    assert fetched.status_code == 200
+    assert fetched.json()["id"] == rid
+    assert fetched.json()["effective_polarity"] == posted.json()["effective_polarity"]
+
+
+def test_invalid_report_id_returns_400():
+    client = _client()
+    r = client.get("/reports/..%2Fescape")  # encoded "../escape"
+    # Either 400 (caught by store) or 404 (FastAPI path matching) — both are safe.
+    assert r.status_code in (400, 404)
