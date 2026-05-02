@@ -82,10 +82,13 @@ rate limiting.
    - Document that current dashboard is safe for local demo/source sharing, not
      open internet deployment.
 
-5. Address GitHub Actions maintenance.
-   - GitHub warned that Node.js 20 actions are deprecated.
-   - Check for newer versions of `actions/checkout` and `actions/setup-python`
-     or test the Node 24 opt-in setting in a separate PR.
+5. ~~Address GitHub Actions maintenance.~~ ✅ Shipped on branch `codex/ci-actions-bump`.
+   - Bumped `actions/checkout@v4` → `@v6` and `actions/setup-python@v5` → `@v6`.
+   - Both v6 releases run on Node 24, so the Node 20 deprecation warning
+     no longer fires. Requires GitHub-hosted runner 2.327.1+ (ubuntu-latest
+     is kept current automatically).
+   - No workflow logic changed; the `pytest` command and Python version
+     pin are untouched.
 
 ## Suggested Work Order
 
