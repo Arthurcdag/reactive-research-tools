@@ -137,6 +137,22 @@ DASHBOARD_HTML = """<!doctype html>
       align-items: center;
     }
 
+    .presets {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 6px;
+      padding: 0 12px 4px;
+    }
+
+    .presets-label {
+      width: 100%;
+      margin: 0;
+      color: var(--muted);
+      font-size: 12px;
+      font-weight: 700;
+      text-transform: uppercase;
+    }
+
     button {
       min-height: 38px;
       border: 1px solid transparent;
@@ -160,10 +176,98 @@ DASHBOARD_HTML = """<!doctype html>
       border-color: var(--line);
     }
 
+    button.preset {
+      min-height: 32px;
+      padding: 6px 10px;
+      border-color: var(--line);
+      background: #ffffff;
+      color: var(--ink);
+      font-size: 13px;
+      font-weight: 600;
+    }
+
+    button.preset:hover { background: var(--soft-green); }
+
+    button.icon {
+      min-height: 28px;
+      padding: 4px 8px;
+      border-color: var(--line);
+      font-size: 12px;
+      font-weight: 600;
+    }
+
     button:disabled {
       cursor: wait;
       opacity: 0.65;
     }
+
+    .score-table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 13px;
+    }
+
+    .score-table th, .score-table td {
+      text-align: left;
+      padding: 6px 8px;
+      border-bottom: 1px solid var(--line);
+      vertical-align: top;
+    }
+
+    .score-table th {
+      width: 35%;
+      color: var(--muted);
+      font-size: 12px;
+      font-weight: 600;
+      text-transform: uppercase;
+    }
+
+    .score-bar {
+      position: relative;
+      width: 100%;
+      height: 8px;
+      margin-top: 4px;
+      border-radius: 4px;
+      background: var(--line);
+      overflow: hidden;
+    }
+
+    .score-bar-fill {
+      position: absolute;
+      top: 0;
+      left: 0;
+      height: 100%;
+      background: var(--teal);
+    }
+
+    .score-value {
+      font-family: var(--mono);
+      font-size: 12px;
+      color: var(--ink);
+    }
+
+    .score-reasons {
+      margin: 4px 0 0;
+      padding: 0 0 0 16px;
+      list-style: disc;
+      color: var(--muted);
+      font-size: 12px;
+    }
+
+    .json-toolbar {
+      display: flex;
+      gap: 8px;
+      align-items: center;
+      margin-bottom: 6px;
+    }
+
+    .copy-feedback {
+      font-size: 12px;
+      color: var(--muted);
+    }
+
+    .copy-feedback.ok { color: var(--teal); }
+    .copy-feedback.err { color: var(--red); }
 
     .status-grid {
       display: grid;
@@ -333,9 +437,15 @@ DASHBOARD_HTML = """<!doctype html>
         </div>
         <div class="actions">
           <button class="primary" type="submit" id="submit">Evaluate</button>
-          <button class="secondary" type="button" id="load-clean">Clean case</button>
         </div>
       </form>
+      <div class="presets" role="group" aria-label="Sample presets">
+        <p class="presets-label">Try a sample</p>
+        <button class="preset" type="button" data-preset="clean_double_negation">Clean double negation</button>
+        <button class="preset" type="button" data-preset="epistemic_shift">Epistemic shift</button>
+        <button class="preset" type="button" data-preset="scope_shift">Scope shift</button>
+        <button class="preset" type="button" data-preset="contained_contradiction">Contained contradiction</button>
+      </div>
     </section>
 
     <section class="panel" aria-live="polite">
@@ -347,6 +457,10 @@ DASHBOARD_HTML = """<!doctype html>
       </div>
       <div class="content-grid">
         <div>
+          <section class="section">
+            <h3>Score breakdown</h3>
+            <div id="score-vector"><div class="empty">No report yet.</div></div>
+          </section>
           <section class="section">
             <h3>Issues</h3>
             <ul class="list" id="issues"><li class="empty">No report yet.</li></ul>
@@ -363,6 +477,10 @@ DASHBOARD_HTML = """<!doctype html>
           </section>
           <section class="section">
             <h3>JSON</h3>
+            <div class="json-toolbar">
+              <button class="icon" type="button" id="copy-json" aria-label="Copy report JSON to clipboard">Copy JSON</button>
+              <span class="copy-feedback" id="copy-feedback" role="status" aria-live="polite"></span>
+            </div>
             <pre id="json">{}</pre>
           </section>
         </div>
@@ -373,16 +491,57 @@ DASHBOARD_HTML = """<!doctype html>
     const form = document.querySelector("#eval-form");
     const submit = document.querySelector("#submit");
     const health = document.querySelector("#health");
+    const copyBtn = document.querySelector("#copy-json");
+    const copyFeedback = document.querySelector("#copy-feedback");
     const fields = {
       polarity: document.querySelector("#polarity"),
       recommendation: document.querySelector("#recommendation"),
       effectiveness: document.querySelector("#effectiveness"),
       bogusness: document.querySelector("#bogusness"),
+      scoreVector: document.querySelector("#score-vector"),
       issues: document.querySelector("#issues"),
       trace: document.querySelector("#trace"),
       probes: document.querySelector("#probes"),
       json: document.querySelector("#json")
     };
+
+    const PRESETS = {
+      clean_double_negation: {
+        claim: "P",
+        argument: "It is not the case that not P. Therefore P.",
+        context: "logic",
+        strictness: "medium"
+      },
+      epistemic_shift: {
+        claim: "X is true",
+        argument: "There is no evidence against X, therefore X is true.",
+        context: "scientific argument",
+        strictness: "medium"
+      },
+      scope_shift: {
+        claim: "It works in production",
+        argument: "It works in simulation. Therefore it works in production.",
+        context: "engineering",
+        strictness: "medium"
+      },
+      contained_contradiction: {
+        claim: "The model is useful in restricted context B",
+        argument: "The model failed in context A. The model works in context B. Therefore the model is useful in restricted context B.",
+        context: "ml evaluation",
+        strictness: "medium"
+      }
+    };
+
+    const SCORE_FIELDS = [
+      ["negation_consistency", "Negation consistency"],
+      ["scope_preservation", "Scope preservation"],
+      ["definition_stability", "Definition stability"],
+      ["context_fit", "Context fit"],
+      ["contradiction_containment", "Contradiction containment"],
+      ["reactive_performance", "Reactive performance"],
+      ["testability", "Testability"],
+      ["implementation_relevance", "Implementation relevance"]
+    ];
 
     function setList(node, rows, render, emptyText) {
       node.replaceChildren();
@@ -408,12 +567,71 @@ DASHBOARD_HTML = """<!doctype html>
       return li;
     }
 
+    function renderScoreVector(scoreVector) {
+      fields.scoreVector.replaceChildren();
+      if (!scoreVector) {
+        const empty = document.createElement("div");
+        empty.className = "empty";
+        empty.textContent = "No score vector available.";
+        fields.scoreVector.appendChild(empty);
+        return;
+      }
+      const reasons = scoreVector.reasons || {};
+      const table = document.createElement("table");
+      table.className = "score-table";
+      SCORE_FIELDS.forEach(([key, label]) => {
+        const value = Number(scoreVector[key] ?? 0);
+        const tr = document.createElement("tr");
+
+        const th = document.createElement("th");
+        th.scope = "row";
+        th.textContent = label;
+
+        const td = document.createElement("td");
+        const valueRow = document.createElement("div");
+        valueRow.className = "score-value";
+        valueRow.textContent = value.toFixed(2);
+        td.appendChild(valueRow);
+
+        const bar = document.createElement("div");
+        bar.className = "score-bar";
+        bar.setAttribute("role", "progressbar");
+        bar.setAttribute("aria-valuemin", "0");
+        bar.setAttribute("aria-valuemax", "1");
+        bar.setAttribute("aria-valuenow", value.toFixed(2));
+        const fill = document.createElement("div");
+        fill.className = "score-bar-fill";
+        const pct = Math.max(0, Math.min(100, value * 100));
+        fill.style.width = pct + "%";
+        bar.appendChild(fill);
+        td.appendChild(bar);
+
+        const fieldReasons = reasons[key];
+        if (Array.isArray(fieldReasons) && fieldReasons.length > 0) {
+          const ul = document.createElement("ul");
+          ul.className = "score-reasons";
+          fieldReasons.forEach(text => {
+            const li = document.createElement("li");
+            li.textContent = text;
+            ul.appendChild(li);
+          });
+          td.appendChild(ul);
+        }
+
+        tr.append(th, td);
+        table.appendChild(tr);
+      });
+      fields.scoreVector.appendChild(table);
+    }
+
     function renderReport(report) {
       fields.polarity.textContent = report.effective_polarity;
       fields.recommendation.textContent = report.recommendation;
       fields.effectiveness.textContent = Number(report.effectiveness_score).toFixed(3);
       fields.bogusness.textContent = Number(report.bogusness_score).toFixed(3);
       fields.json.textContent = JSON.stringify(report, null, 2);
+
+      renderScoreVector(report.score_vector);
 
       setList(
         fields.issues,
@@ -435,6 +653,46 @@ DASHBOARD_HTML = """<!doctype html>
         probe => item("", probe.type, probe.question),
         "No probes emitted."
       );
+    }
+
+    function setCopyFeedback(message, state) {
+      copyFeedback.textContent = message;
+      copyFeedback.className = "copy-feedback" + (state ? " " + state : "");
+      if (message) {
+        window.setTimeout(() => {
+          copyFeedback.textContent = "";
+          copyFeedback.className = "copy-feedback";
+        }, 2500);
+      }
+    }
+
+    async function copyJson() {
+      const text = fields.json.textContent || "";
+      if (!text || text === "{}") {
+        setCopyFeedback("Nothing to copy yet — run an evaluation first.", "err");
+        return;
+      }
+      // Clipboard API is gated behind user activation (this click handler).
+      // We never copy automatically.
+      try {
+        if (navigator.clipboard && navigator.clipboard.writeText) {
+          await navigator.clipboard.writeText(text);
+          setCopyFeedback("Copied to clipboard.", "ok");
+          return;
+        }
+        throw new Error("Clipboard API unavailable.");
+      } catch (error) {
+        setCopyFeedback("Copy failed: " + (error && error.message ? error.message : "unknown error"), "err");
+      }
+    }
+
+    function applyPreset(name) {
+      const preset = PRESETS[name];
+      if (!preset) return;
+      document.querySelector("#claim").value = preset.claim;
+      document.querySelector("#argument").value = preset.argument;
+      document.querySelector("#context").value = preset.context;
+      document.querySelector("#strictness").value = preset.strictness;
     }
 
     async function evaluate(event) {
@@ -459,11 +717,10 @@ DASHBOARD_HTML = """<!doctype html>
       }
     }
 
-    document.querySelector("#load-clean").addEventListener("click", () => {
-      document.querySelector("#claim").value = "P";
-      document.querySelector("#argument").value = "It is not the case that not P. Therefore P.";
-      document.querySelector("#context").value = "logic";
+    document.querySelectorAll("button.preset[data-preset]").forEach(btn => {
+      btn.addEventListener("click", () => applyPreset(btn.getAttribute("data-preset")));
     });
+    copyBtn.addEventListener("click", copyJson);
 
     form.addEventListener("submit", evaluate);
     fetch("/health")
