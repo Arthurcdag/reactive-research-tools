@@ -32,8 +32,16 @@
 - [x] Regression tests
 - [x] CI workflow
 
+### Sprint 6: Advisory wrapper
+- [x] Azatoth deterministic candidate generation
+- [x] Nyahlothep report-based selection
+- [x] Advisory API endpoints
+- [x] Dashboard wrapper panel
+- [ ] Nyahlothep/outputer live LLM plumbing behind structured validation
+- [ ] Azatoth/inputer live LLM candidate generation behind shared plumbing
+
 ### Deferred
-- [ ] LLM advisory parser/probe wrapper behind structured validation
+- [ ] Full LLM advisory parser/probe wrapper provider integration
 
 ## Xi–Jensen Pipeline
 

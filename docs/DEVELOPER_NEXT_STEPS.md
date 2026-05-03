@@ -111,6 +111,21 @@ rate limiting.
    - No workflow logic changed; the `pytest` command and Python version
      pin are untouched.
 
+6. ~~Add the Azatoth/Nyahlothep advisory wrapper V0.~~ Shipped on branch
+   `codex/advisory-wrapper-v0`.
+   - `advisory.py` provides a deterministic contract: Azatoth generates a
+     bounded candidate swarm, the filter evaluates each candidate, and
+     Nyahlothep selects from filter reports only.
+   - Adds `POST /advisory/azatoth`, `POST /advisory/nyahlothep`, and
+     `POST /advisory/run`.
+   - The dashboard has a compact wrapper panel with candidate ranking,
+     selected candidate display, and a "Load selected" action.
+   - No provider keys, no network calls, and no live LLM dependency are part
+     of this V0.
+   - V1 should build the Nyahlothep/outputer path first: output failures are
+     visible, and the outputer needs the same API client, prompt caching, and
+     JSON validation plumbing that Azatoth/inputer will reuse later.
+
 ## Suggested Work Order
 
 1. Create a new branch from `main`.

@@ -71,6 +71,12 @@ DASHBOARD_HTML = """<!doctype html>
       padding: 16px 20px 24px;
     }
 
+    .left-stack {
+      display: grid;
+      align-content: start;
+      gap: 16px;
+    }
+
     .panel {
       background: var(--panel);
       border: 1px solid var(--line);
@@ -269,6 +275,30 @@ DASHBOARD_HTML = """<!doctype html>
     .copy-feedback.ok { color: var(--teal); }
     .copy-feedback.err { color: var(--red); }
 
+    .advisory-body {
+      display: grid;
+      gap: 12px;
+      padding: 12px;
+    }
+
+    .advisory-body textarea {
+      min-height: 86px;
+    }
+
+    .advisory-selected {
+      display: grid;
+      gap: 6px;
+      border: 1px solid var(--line);
+      border-radius: 6px;
+      padding: 10px;
+      background: #ffffff;
+      font-size: 13px;
+    }
+
+    .advisory-selected .code {
+      color: var(--ink);
+    }
+
     .status-grid {
       display: grid;
       grid-template-columns: repeat(4, minmax(0, 1fr));
@@ -408,45 +438,90 @@ DASHBOARD_HTML = """<!doctype html>
     </div>
   </header>
   <main>
-    <section class="panel">
-      <div class="panel-header">
-        <h2 class="panel-title">Input</h2>
-      </div>
-      <form id="eval-form">
-        <label>
-          Claim
-          <input id="claim" name="claim" required value="X is true">
-        </label>
-        <label>
-          Argument
-          <textarea id="argument" name="argument" required>There is no evidence against X, therefore X is true</textarea>
-        </label>
-        <div class="row">
+    <div class="left-stack">
+      <section class="panel">
+        <div class="panel-header">
+          <h2 class="panel-title">Input</h2>
+        </div>
+        <form id="eval-form">
           <label>
-            Context
-            <input id="context" name="context" value="scientific argument">
+            Claim
+            <input id="claim" name="claim" required value="X is true">
           </label>
           <label>
-            Strictness
-            <select id="strictness" name="strictness">
+            Argument
+            <textarea id="argument" name="argument" required>There is no evidence against X, therefore X is true</textarea>
+          </label>
+          <div class="row">
+            <label>
+              Context
+              <input id="context" name="context" value="scientific argument">
+            </label>
+            <label>
+              Strictness
+              <select id="strictness" name="strictness">
+                <option value="low">low</option>
+                <option value="medium" selected>medium</option>
+                <option value="high">high</option>
+              </select>
+            </label>
+          </div>
+          <div class="actions">
+            <button class="primary" type="submit" id="submit">Evaluate</button>
+          </div>
+        </form>
+        <div class="presets" role="group" aria-label="Sample presets">
+          <p class="presets-label">Try a sample</p>
+          <button class="preset" type="button" data-preset="clean_double_negation">Clean double negation</button>
+          <button class="preset" type="button" data-preset="epistemic_shift">Epistemic shift</button>
+          <button class="preset" type="button" data-preset="scope_shift">Scope shift</button>
+          <button class="preset" type="button" data-preset="contained_contradiction">Contained contradiction</button>
+        </div>
+      </section>
+
+      <section class="panel" id="advisory-panel">
+        <div class="panel-header">
+          <h2 class="panel-title">Azatoth/Nyahlothep</h2>
+          <span class="muted" id="advisory-status">ready</span>
+        </div>
+        <div class="advisory-body">
+          <label>
+            Seed statement
+            <textarea id="advisory-seed">X is true</textarea>
+          </label>
+          <div class="row">
+            <label>
+              Context
+              <input id="advisory-context" value="scientific argument">
+            </label>
+            <label>
+              Count
+              <input id="advisory-count" type="number" min="1" max="20" value="8">
+            </label>
+          </div>
+          <label>
+            Advisory strictness
+            <select id="advisory-strictness">
               <option value="low">low</option>
               <option value="medium" selected>medium</option>
               <option value="high">high</option>
             </select>
           </label>
+          <div class="actions">
+            <button class="primary" type="button" id="run-wrapper">Run wrapper</button>
+            <button class="secondary" type="button" id="load-selected" disabled>Load selected</button>
+          </div>
+          <section class="section">
+            <h3>Candidate ranking</h3>
+            <ol class="list" id="advisory-ranking"><li class="empty">No wrapper run yet.</li></ol>
+          </section>
+          <section class="section">
+            <h3>Selected candidate</h3>
+            <div id="selected-candidate" class="empty">No selection yet.</div>
+          </section>
         </div>
-        <div class="actions">
-          <button class="primary" type="submit" id="submit">Evaluate</button>
-        </div>
-      </form>
-      <div class="presets" role="group" aria-label="Sample presets">
-        <p class="presets-label">Try a sample</p>
-        <button class="preset" type="button" data-preset="clean_double_negation">Clean double negation</button>
-        <button class="preset" type="button" data-preset="epistemic_shift">Epistemic shift</button>
-        <button class="preset" type="button" data-preset="scope_shift">Scope shift</button>
-        <button class="preset" type="button" data-preset="contained_contradiction">Contained contradiction</button>
-      </div>
-    </section>
+      </section>
+    </div>
 
     <section class="panel" aria-live="polite">
       <div class="status-grid">
@@ -493,6 +568,18 @@ DASHBOARD_HTML = """<!doctype html>
     const health = document.querySelector("#health");
     const copyBtn = document.querySelector("#copy-json");
     const copyFeedback = document.querySelector("#copy-feedback");
+    const advisory = {
+      seed: document.querySelector("#advisory-seed"),
+      context: document.querySelector("#advisory-context"),
+      count: document.querySelector("#advisory-count"),
+      strictness: document.querySelector("#advisory-strictness"),
+      run: document.querySelector("#run-wrapper"),
+      load: document.querySelector("#load-selected"),
+      status: document.querySelector("#advisory-status"),
+      ranking: document.querySelector("#advisory-ranking"),
+      selected: document.querySelector("#selected-candidate")
+    };
+    let latestAdvisoryRun = null;
     const fields = {
       polarity: document.querySelector("#polarity"),
       recommendation: document.querySelector("#recommendation"),
@@ -655,6 +742,96 @@ DASHBOARD_HTML = """<!doctype html>
       );
     }
 
+    function setAdvisoryStatus(message) {
+      advisory.status.textContent = message;
+    }
+
+    function renderSelectedCandidate(candidate, selection) {
+      advisory.selected.replaceChildren();
+      advisory.selected.className = "advisory-selected";
+      const rows = [
+        ["Candidate", candidate.candidate_id],
+        ["Template", candidate.template],
+        ["Claim", candidate.claim],
+        ["Argument", candidate.argument],
+        ["Context", candidate.context || "(none)"],
+        ["Reason", selection.rank_reason]
+      ];
+      rows.forEach(([label, value]) => {
+        const row = document.createElement("div");
+        const top = document.createElement("div");
+        top.className = "code";
+        top.textContent = label;
+        const body = document.createElement("div");
+        body.textContent = value;
+        row.append(top, body);
+        advisory.selected.appendChild(row);
+      });
+    }
+
+    function renderAdvisory(run) {
+      latestAdvisoryRun = run;
+      const selection = run.nyahlothep_selection;
+      const candidate = run.replication_recipe.selected_candidate;
+      setList(
+        advisory.ranking,
+        selection.ranking,
+        row => item(
+          row.error_count ? "warning" : "ok",
+          "#" + row.rank + " " + row.candidate_id,
+          row.template + " | " + row.recommendation + " | " +
+            Number(row.effectiveness_score).toFixed(3) + " | " +
+            row.rank_reason
+        ),
+        "No candidates ranked."
+      );
+      renderSelectedCandidate(candidate, selection);
+      advisory.load.disabled = false;
+      setAdvisoryStatus("selected");
+      renderReport(run.selected_report);
+    }
+
+    async function runWrapper() {
+      advisory.run.disabled = true;
+      advisory.load.disabled = true;
+      setAdvisoryStatus("running");
+      try {
+        const count = Number(advisory.count.value || 8);
+        const response = await fetch("/advisory/run", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            seed: advisory.seed.value,
+            context: advisory.context.value,
+            count: count,
+            strictness: advisory.strictness.value
+          })
+        });
+        const payload = await response.json();
+        if (!response.ok) {
+          throw new Error(payload.detail || response.statusText);
+        }
+        renderAdvisory(payload);
+      } catch (error) {
+        latestAdvisoryRun = null;
+        advisory.selected.className = "empty";
+        advisory.selected.textContent = String(error);
+        setAdvisoryStatus("failed");
+      } finally {
+        advisory.run.disabled = false;
+      }
+    }
+
+    function loadSelectedCandidate() {
+      if (!latestAdvisoryRun) return;
+      const candidate = latestAdvisoryRun.replication_recipe.selected_candidate;
+      document.querySelector("#claim").value = candidate.claim;
+      document.querySelector("#argument").value = candidate.argument;
+      document.querySelector("#context").value = candidate.context;
+      document.querySelector("#strictness").value = candidate.strictness;
+      setAdvisoryStatus("loaded");
+    }
+
     function setCopyFeedback(message, state) {
       copyFeedback.textContent = message;
       copyFeedback.className = "copy-feedback" + (state ? " " + state : "");
@@ -721,6 +898,8 @@ DASHBOARD_HTML = """<!doctype html>
       btn.addEventListener("click", () => applyPreset(btn.getAttribute("data-preset")));
     });
     copyBtn.addEventListener("click", copyJson);
+    advisory.run.addEventListener("click", runWrapper);
+    advisory.load.addEventListener("click", loadSelectedCandidate);
 
     form.addEventListener("submit", evaluate);
     fetch("/health")
