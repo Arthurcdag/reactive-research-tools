@@ -95,10 +95,13 @@ rate limiting.
      extra security headers, middleware coverage on non-dashboard
      endpoints, plus 404/405 surface.
 
-4. Add a public-sharing deployment checklist.
-   - Include auth, rate limiting, logging, data retention, HTTPS, and CORS.
-   - Document that current dashboard is safe for local demo/source sharing, not
-     open internet deployment.
+4. ~~Add a public-sharing deployment checklist.~~ ✅ Shipped on branch `codex/deploy-checklist`.
+   - See [`docs/PUBLIC_DEPLOYMENT_CHECKLIST.md`](PUBLIC_DEPLOYMENT_CHECKLIST.md).
+   - Covers auth, rate limiting, HTTPS, CORS, logging, data retention,
+     network exposure, dependency hygiene, engine-integrity carry-over
+     from the existing safety notes, pre-launch verification steps,
+     and an explicit "what's safe today" section that draws the line
+     at local-only / SSH-forwarded use vs. public binding.
 
 5. ~~Address GitHub Actions maintenance.~~ ✅ Shipped on branch `codex/ci-actions-bump`.
    - Bumped `actions/checkout@v4` → `@v6` and `actions/setup-python@v5` → `@v6`.
