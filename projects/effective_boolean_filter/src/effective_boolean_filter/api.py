@@ -4,6 +4,9 @@ Endpoints:
   POST /evaluate_argument
   POST /generate_probes
   POST /score_probe_results
+  POST /advisory/azatoth
+  POST /advisory/nyahlothep
+  POST /advisory/run
   GET  /
   GET  /reports/{id}
 
@@ -30,6 +33,14 @@ from .probes import generate_probes as gen_probes
 from .report import to_json_dict
 from .scoring import score_argument
 from .storage import ReportStore, get_store
+from .advisory import (
+    AdvisoryCandidate,
+    advisory_candidate_to_dict,
+    advisory_run_to_dict,
+    azatoth_generate,
+    run_advisory_wrapper,
+    run_nyahlothep_on_candidates,
+)
 
 
 if _HAS_PYDANTIC:
@@ -57,6 +68,27 @@ if _HAS_PYDANTIC:
         context: str = Field("", max_length=2000)
         strictness: str = Field("medium", pattern="^(low|medium|high)$")
         answers: list[ProbeAnswer] = Field(default_factory=list, max_length=20)
+
+    class AdvisoryGenerateBody(BaseModel):  # type: ignore[misc]
+        seed: str = Field(..., min_length=1, max_length=4000)
+        context: str = Field("", max_length=2000)
+        count: int = Field(8, ge=1, le=20)
+        strictness: str = Field("medium", pattern="^(low|medium|high)$")
+
+    class AdvisoryCandidateBody(BaseModel):  # type: ignore[misc]
+        candidate_id: str = Field(..., min_length=1, max_length=120)
+        claim: str = Field(..., min_length=1, max_length=4000)
+        argument: str = Field(..., min_length=1, max_length=8000)
+        context: str = Field("", max_length=2000)
+        strictness: str = Field("medium", pattern="^(low|medium|high)$")
+        template: str = Field("caller_provided", min_length=1, max_length=120)
+        mutation_notes: str = Field("", max_length=1000)
+
+    class AdvisorySelectBody(BaseModel):  # type: ignore[misc]
+        seed: str = Field("", max_length=4000)
+        candidates: list[AdvisoryCandidateBody] = Field(
+            ..., min_length=1, max_length=20
+        )
 
 
 def create_app(store: ReportStore | None = None) -> Any:
@@ -165,6 +197,52 @@ def create_app(store: ReportStore | None = None) -> Any:
         report.bogusness_score = bog
         out = to_json_dict(report)
         reports.put(report.id, out)
+        return out
+
+    @app.post("/advisory/azatoth")
+    def advisory_azatoth(body: AdvisoryGenerateBody) -> dict[str, Any]:
+        candidates = azatoth_generate(
+            body.seed,
+            context=body.context,
+            count=body.count,
+            strictness=body.strictness,  # type: ignore[arg-type]
+        )
+        return {
+            "mode": "contract_v0",
+            "azatoth_candidates": [
+                advisory_candidate_to_dict(candidate) for candidate in candidates
+            ],
+        }
+
+    @app.post("/advisory/nyahlothep")
+    def advisory_nyahlothep(body: AdvisorySelectBody) -> dict[str, Any]:
+        candidates = [
+            AdvisoryCandidate(
+                candidate_id=c.candidate_id,
+                claim=c.claim,
+                argument=c.argument,
+                context=c.context,
+                strictness=c.strictness,  # type: ignore[arg-type]
+                template=c.template,
+                mutation_notes=c.mutation_notes,
+            )
+            for c in body.candidates
+        ]
+        run = run_nyahlothep_on_candidates(seed=body.seed, candidates=candidates)
+        out = advisory_run_to_dict(run)
+        reports.put(run.selected_report.id, out["selected_report"])
+        return out
+
+    @app.post("/advisory/run")
+    def advisory_run(body: AdvisoryGenerateBody) -> dict[str, Any]:
+        run = run_advisory_wrapper(
+            body.seed,
+            context=body.context,
+            count=body.count,
+            strictness=body.strictness,  # type: ignore[arg-type]
+        )
+        out = advisory_run_to_dict(run)
+        reports.put(run.selected_report.id, out["selected_report"])
         return out
 
     @app.get("/reports/{report_id}")

@@ -87,6 +87,28 @@ def test_dashboard_has_copy_json_button_and_feedback():
     assert "navigator.clipboard.writeText" in body
 
 
+def test_dashboard_has_advisory_wrapper_controls():
+    body = _client().get("/").text
+    for fragment in (
+        'id="advisory-panel"',
+        'id="advisory-seed"',
+        'id="advisory-count"',
+        'id="run-wrapper"',
+        'id="advisory-ranking"',
+        'id="selected-candidate"',
+        'id="load-selected"',
+        "/advisory/run",
+    ):
+        assert fragment in body
+
+
+def test_dashboard_has_selected_candidate_loading_hooks():
+    body = _client().get("/").text
+    assert "replication_recipe.selected_candidate" in body
+    assert "loadSelectedCandidate" in body
+    assert "renderAdvisory" in body
+
+
 def test_dashboard_no_inline_event_handlers():
     """CSP forbids inline scripts; preset/copy buttons must wire up via
     addEventListener, not onclick=... attributes."""

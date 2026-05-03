@@ -21,7 +21,11 @@ works in simulation       -> untracked_shift if conclusion is "works in producti
 
 ## Architecture
 
-LLM is **not** in the deterministic path. The current MVP is rule-based. An LLM wrapper for advisory parsing/probe paraphrasing can be added later, behind structured-JSON validation.
+LLM is **not** in the deterministic path. The current MVP is rule-based.
+The advisory wrapper V0 is contract-first and deterministic: Azatoth makes
+candidate statements, the filter evaluates each one, and Nyahlothep selects
+the strongest candidate from filter reports only. A live LLM provider can be
+added later behind the same structured contract.
 
 ```text
 raw argument
@@ -62,6 +66,9 @@ Endpoints (per spec section 11):
 | POST   | /evaluate_argument    | Run the full pipeline             |
 | POST   | /generate_probes      | Probes only (no scoring)          |
 | POST   | /score_probe_results  | Re-score after answering probes   |
+| POST   | /advisory/azatoth     | Generate candidate statements     |
+| POST   | /advisory/nyahlothep  | Select from caller candidates     |
+| POST   | /advisory/run         | Generate, evaluate, select        |
 | GET    | /reports/{id}         | Fetch a stored report             |
 | GET    | /health               | Liveness                          |
 
@@ -88,6 +95,29 @@ EBF_REPORT_STORE=file:/var/lib/ebf-reports \
 
 `create_app(store=...)` accepts an explicit store instance for tests and
 custom backends.
+
+### Advisory wrapper
+
+The wrapper is a deterministic V0 contract. It performs no network calls and
+uses no provider keys.
+
+```bash
+curl -X POST http://127.0.0.1:8000/advisory/run \
+  -H "Content-Type: application/json" \
+  -d "{\"seed\":\"X is true\",\"context\":\"science\",\"count\":8}"
+```
+
+Response shape:
+
+- `id`
+- `mode: "contract_v0"`
+- `azatoth_candidates`
+- `nyahlothep_selection`
+- `selected_report`
+- `replication_recipe`
+
+Only the selected candidate's report is stored in the report store. Other
+candidate evaluations are returned as ranking summaries.
 
 ## Output concepts
 
@@ -121,6 +151,6 @@ Covers: negation parity, scope shifts, contradiction containment, probe generati
 | 1. Core engine                 | ✅ schemas, parser, polarity engine, parity invariants |
 | 2. Scope + contradiction       | ✅ scope tracker, definition tracker, no-explosion contradictions |
 | 3. Reactive probes             | ✅ typed probe generator + score wiring |
-| 4. API + CLI                   | ✅ FastAPI (4 endpoints), CLI (json/human/both) |
+| 4. API + CLI                   | ✅ FastAPI, advisory endpoints, CLI (json/human/both) |
 | 5. Benchmarks                  | ✅ 55 labelled examples + regression CI |
-| LLM advisory wrapper            | ⏳ deferred — deterministic core comes first per spec |
+| Advisory wrapper V0             | contract-first Azatoth/Nyahlothep, no live LLM |
