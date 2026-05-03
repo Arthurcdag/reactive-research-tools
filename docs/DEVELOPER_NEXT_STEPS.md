@@ -66,11 +66,24 @@ rate limiting.
    - Round-trip persistence across app recreation is covered in
      `tests/test_api.py::test_file_store_persists_across_app_recreation`.
 
-2. Improve dashboard usability without adding a frontend build step.
-   - Add sample presets for common cases: clean double negation, epistemic
-     shift, scope shift, contained contradiction.
-   - Add a compact score-vector table.
-   - Add a copy JSON button only if clipboard usage is explicit and visible.
+2. ~~Improve dashboard usability without adding a frontend build step.~~ ✅ Shipped on branch `codex/dashboard-ux`.
+   - Replaced the single "Clean case" button with a row of four labelled
+     sample-preset buttons (clean double negation, epistemic shift, scope
+     shift, contained contradiction). Each writes its claim/argument/
+     context/strictness into the form via `addEventListener` (no inline
+     handlers, CSP-safe).
+   - Added a compact score-vector table that renders all eight fields
+     with value, progress bar, and per-field reason strings on every
+     evaluation.
+   - Added a "Copy JSON" button that uses `navigator.clipboard.writeText`
+     gated behind the click handler (so clipboard access only occurs on
+     explicit user activation), with a `role="status"` `aria-live="polite"`
+     feedback span that shows "Copied to clipboard." or an error message
+     and clears after 2.5s. Refuses to copy when no report has been run.
+   - Regression tests in `tests/test_api.py` cover the four preset
+     buttons, all eight score-vector fields in the rendered HTML, the
+     copy-JSON button + feedback element + Clipboard API usage, and the
+     no-inline-event-handler invariant.
 
 3. ~~Add API error tests.~~ ✅ Shipped on branch `codex/api-error-tests`.
    - `tests/test_api_validation.py` (52 tests) covers: over-length

@@ -48,6 +48,54 @@ def test_dashboard_root_serves_html():
     assert "/evaluate_argument" in r.text
 
 
+def test_dashboard_has_all_four_sample_presets():
+    body = _client().get("/").text
+    for preset in (
+        "clean_double_negation",
+        "epistemic_shift",
+        "scope_shift",
+        "contained_contradiction",
+    ):
+        assert f'data-preset="{preset}"' in body, (
+            f"missing preset button {preset!r}"
+        )
+
+
+def test_dashboard_has_score_vector_section():
+    body = _client().get("/").text
+    assert 'id="score-vector"' in body
+    # all eight ScoreVector field labels must be referenced in the JS table
+    for key in (
+        "negation_consistency",
+        "scope_preservation",
+        "definition_stability",
+        "context_fit",
+        "contradiction_containment",
+        "reactive_performance",
+        "testability",
+        "implementation_relevance",
+    ):
+        assert key in body, f"score-vector field {key!r} missing from dashboard"
+
+
+def test_dashboard_has_copy_json_button_and_feedback():
+    body = _client().get("/").text
+    assert 'id="copy-json"' in body
+    # explicit/visible confirmation slot per the developer brief
+    assert 'id="copy-feedback"' in body
+    # the handler must use the user-activation gated Clipboard API
+    assert "navigator.clipboard.writeText" in body
+
+
+def test_dashboard_no_inline_event_handlers():
+    """CSP forbids inline scripts; preset/copy buttons must wire up via
+    addEventListener, not onclick=... attributes."""
+    body = _client().get("/").text
+    # crude but effective: no `onclick=`, `onsubmit=`, etc. anywhere
+    for attr in ("onclick=", "onsubmit=", "onload=", "onerror=", "onmouseover="):
+        assert attr not in body, f"inline event handler {attr!r} found in dashboard"
+
+
 def test_get_report_round_trip():
     client = _client()
     r = client.post(
