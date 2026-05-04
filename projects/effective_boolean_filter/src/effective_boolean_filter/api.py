@@ -6,6 +6,7 @@ Endpoints:
   POST /score_probe_results
   POST /advisory/azatoth
   POST /advisory/nyahlothep
+  POST /advisory/nyahlothep/output
   POST /advisory/run
   GET  /
   GET  /reports/{id}
@@ -41,6 +42,18 @@ from .advisory import (
     run_advisory_wrapper,
     run_nyahlothep_on_candidates,
 )
+from .llm_client import (
+    DisabledLLMClientError,
+    LLMClient,
+    LLMProviderUnavailable,
+    LLMTimeoutError,
+)
+from .llm_outputer import (
+    OutputerValidationError,
+    generate_outputer,
+    outputer_result_to_dict,
+)
+from .llm_cache import LLMResponseCache
 
 
 if _HAS_PYDANTIC:
@@ -90,13 +103,31 @@ if _HAS_PYDANTIC:
             ..., min_length=1, max_length=20
         )
 
+    class NyahlothepOutputBody(BaseModel):  # type: ignore[misc]
+        # selected_report comes back from /advisory/run (and friends) as
+        # a structured dict. We accept it verbatim and treat every field
+        # as data; the LLM never sees it as instructions.
+        selected_report: dict[str, Any] = Field(...)
+        replication_recipe: dict[str, Any] = Field(...)
+        style: str = Field("brief", pattern="^(brief|technical|replication)$")
 
-def create_app(store: ReportStore | None = None) -> Any:
+
+def create_app(
+    store: ReportStore | None = None,
+    *,
+    llm_client: LLMClient | None = None,
+    outputer_cache: LLMResponseCache | None = None,
+) -> Any:
     """Build the FastAPI app.
 
     ``store`` selects the report backend. When omitted, the store is
     resolved from the ``EBF_REPORT_STORE`` env var via :func:`get_store`.
     Tests pass an explicit store to avoid env coupling.
+
+    ``llm_client`` and ``outputer_cache`` let tests inject a deterministic
+    fake client and a fresh cache without touching ``EBF_LLM_PROVIDER``
+    or the module-level default cache. When both are omitted, the
+    Nyahlothep outputer endpoint resolves them lazily per-request.
     """
     try:
         from fastapi import FastAPI, HTTPException
@@ -244,6 +275,28 @@ def create_app(store: ReportStore | None = None) -> Any:
         out = advisory_run_to_dict(run)
         reports.put(run.selected_report.id, out["selected_report"])
         return out
+
+    @app.post("/advisory/nyahlothep/output")
+    def advisory_nyahlothep_output(body: NyahlothepOutputBody) -> dict[str, Any]:
+        try:
+            result = generate_outputer(
+                selected_report=body.selected_report,
+                replication_recipe=body.replication_recipe,
+                style=body.style,  # type: ignore[arg-type]
+                client=llm_client,
+                cache=outputer_cache,
+            )
+        except DisabledLLMClientError as exc:
+            # provider configured but not shipping in this build
+            raise HTTPException(status_code=503, detail=str(exc))
+        except LLMProviderUnavailable as exc:
+            raise HTTPException(status_code=502, detail=str(exc))
+        except LLMTimeoutError as exc:
+            raise HTTPException(status_code=504, detail=str(exc))
+        except OutputerValidationError as exc:
+            # invalid JSON / schema mismatch / source_report_id mismatch
+            raise HTTPException(status_code=422, detail=str(exc))
+        return outputer_result_to_dict(result)
 
     @app.get("/reports/{report_id}")
     def get_report(report_id: str) -> dict[str, Any]:

@@ -126,6 +126,49 @@ rate limiting.
      visible, and the outputer needs the same API client, prompt caching, and
      JSON validation plumbing that Azatoth/inputer will reuse later.
 
+7. ~~Build Nyahlothep outputer V1.~~ ✅ Shipped on branch
+   `codex/nyahlothep-outputer-v1`.
+   - `llm_client.py` defines the `LLMClient` interface, ships
+     `DeterministicFakeClient` as the default, and reserves the provider
+     adapter slot behind `EBF_LLM_PROVIDER`. Selecting any non-fake value
+     raises `DisabledLLMClientError` so callers see a visible failure
+     rather than a silent stub.
+   - `llm_prompts.py` carries the versioned `nyahlothep_outputer_v1`
+     system prompt and a `Style` enum (`brief` / `technical` /
+     `replication`).
+   - `llm_cache.py` provides an in-process cache keyed by
+     `(prompt_version, provider, model, report_hash, recipe_hash, style)`
+     and stores **validated** output only.
+   - `llm_outputer.py` orchestrates generate-validate-cache. Validation
+     is strict: missing/extra/wrong-type fields, JSON parse errors, and
+     `source_report_id` mismatch all raise `OutputerValidationError`.
+     The outputer never mutates the input `selected_report` or
+     `replication_recipe`.
+   - `POST /advisory/nyahlothep/output` maps each typed exception to a
+     visible HTTP status: `OutputerValidationError -> 422`,
+     `LLMProviderUnavailable -> 502`, `LLMTimeoutError -> 504`,
+     `DisabledLLMClientError -> 503`. There is no silent fallback.
+   - Dashboard adds a Nyahlothep narration panel with a style select,
+     Generate button gated on a successful wrapper run, status badge
+     (ready / generating / cached / error), and a result block that
+     renders summary / why_selected / replication_steps / caveats /
+     meta-fields entirely via `textContent` (no `innerHTML`, no inline
+     handlers, CSP unchanged).
+   - Tests: `tests/test_llm_outputer.py` (25 unit tests) and
+     `tests/test_api_nyahlothep_output.py` (13 endpoint tests) cover
+     happy path, all three styles, cache hit, invalid JSON, missing
+     fields, unexpected fields, wrong types, empty steps, source-id
+     mismatch, disabled provider, and the no-mutation invariant.
+     `tests/test_api.py` adds two dashboard-hookup regressions.
+
+8. Build Azatoth inputer.
+   - Reuse the `LLMClient`, `LLMResponseCache`, prompt-versioning, and
+     JSON-validation plumbing from V1.
+   - Inputer must produce candidate JSON only; every candidate still
+     passes through the deterministic filter before selection.
+   - Calibrate against the 55-example benchmark — a regression there is
+     a verdict regression.
+
 ## Suggested Work Order
 
 1. Create a new branch from `main`.

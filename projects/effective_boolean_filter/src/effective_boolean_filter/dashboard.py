@@ -275,6 +275,67 @@ DASHBOARD_HTML = """<!doctype html>
     .copy-feedback.ok { color: var(--teal); }
     .copy-feedback.err { color: var(--red); }
 
+    .outputer-controls {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 10px;
+      align-items: end;
+      margin-bottom: 8px;
+    }
+
+    .outputer-style-label {
+      flex: 0 0 auto;
+      width: 140px;
+    }
+
+    .outputer-status {
+      flex: 1 1 auto;
+      font-size: 12px;
+      overflow-wrap: anywhere;
+    }
+
+    .outputer-status.ok { color: var(--teal); }
+    .outputer-status.err { color: var(--red); }
+    .outputer-status.cached { color: var(--blue); }
+
+    .outputer-output {
+      display: grid;
+      gap: 10px;
+      padding: 10px;
+      border: 1px solid var(--line);
+      border-radius: 6px;
+      background: #ffffff;
+    }
+
+    .outputer-meta {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+      font-family: var(--mono);
+      font-size: 11px;
+      color: var(--muted);
+    }
+
+    .outputer-section h4 {
+      margin: 0 0 4px;
+      font-size: 12px;
+      font-weight: 700;
+      text-transform: uppercase;
+      color: var(--muted);
+    }
+
+    .outputer-section p,
+    .outputer-section li {
+      margin: 0;
+      overflow-wrap: anywhere;
+    }
+
+    .outputer-section ol,
+    .outputer-section ul {
+      margin: 0;
+      padding-left: 18px;
+    }
+
     .advisory-body {
       display: grid;
       gap: 12px;
@@ -519,6 +580,26 @@ DASHBOARD_HTML = """<!doctype html>
             <h3>Selected candidate</h3>
             <div id="selected-candidate" class="empty">No selection yet.</div>
           </section>
+          <section class="section" id="outputer-section" aria-live="polite">
+            <h3>Nyahlothep narration</h3>
+            <div class="outputer-controls">
+              <label class="outputer-style-label">
+                Style
+                <select id="outputer-style">
+                  <option value="brief" selected>brief</option>
+                  <option value="technical">technical</option>
+                  <option value="replication">replication</option>
+                </select>
+              </label>
+              <button class="primary" type="button" id="generate-output" disabled>
+                Generate narration
+              </button>
+              <span class="outputer-status muted" id="outputer-status" role="status">
+                Run the wrapper first.
+              </span>
+            </div>
+            <div id="outputer-result" class="empty">No narration yet.</div>
+          </section>
         </div>
       </section>
     </div>
@@ -578,6 +659,12 @@ DASHBOARD_HTML = """<!doctype html>
       status: document.querySelector("#advisory-status"),
       ranking: document.querySelector("#advisory-ranking"),
       selected: document.querySelector("#selected-candidate")
+    };
+    const outputer = {
+      style: document.querySelector("#outputer-style"),
+      generate: document.querySelector("#generate-output"),
+      status: document.querySelector("#outputer-status"),
+      result: document.querySelector("#outputer-result")
     };
     let latestAdvisoryRun = null;
     const fields = {
@@ -789,6 +876,10 @@ DASHBOARD_HTML = """<!doctype html>
       advisory.load.disabled = false;
       setAdvisoryStatus("selected");
       renderReport(run.selected_report);
+      // a fresh wrapper run invalidates any prior narration; the user must
+      // click Generate again to call the outputer for this report.
+      clearOutputerOutput("No narration yet for this run.");
+      setOutputerEnabled();
     }
 
     async function runWrapper() {
@@ -830,6 +921,136 @@ DASHBOARD_HTML = """<!doctype html>
       document.querySelector("#context").value = candidate.context;
       document.querySelector("#strictness").value = candidate.strictness;
       setAdvisoryStatus("loaded");
+    }
+
+    function setOutputerStatus(message, state) {
+      outputer.status.textContent = message;
+      outputer.status.className = "outputer-status" + (state ? " " + state : " muted");
+    }
+
+    function clearOutputerOutput(emptyMessage) {
+      outputer.result.replaceChildren();
+      outputer.result.className = "empty";
+      outputer.result.textContent = emptyMessage;
+    }
+
+    function renderOutputerOutput(payload) {
+      // every value rendered via textContent — never innerHTML — because
+      // selected_report came from the engine which echoed user text and
+      // the LLM also paraphrased user text. Both must stay text-only.
+      outputer.result.replaceChildren();
+      outputer.result.className = "outputer-output";
+
+      const meta = document.createElement("div");
+      meta.className = "outputer-meta";
+      const provider = document.createElement("span");
+      provider.textContent = "provider: " + (payload.provider || "?");
+      const model = document.createElement("span");
+      model.textContent = "model: " + (payload.model || "?");
+      const cached = document.createElement("span");
+      cached.textContent = payload.cached ? "cached" : "fresh";
+      const source = document.createElement("span");
+      source.textContent = "source: " + (
+        payload.validated_output && payload.validated_output.source_report_id
+          ? payload.validated_output.source_report_id
+          : "?"
+      );
+      meta.append(provider, model, cached, source);
+      outputer.result.appendChild(meta);
+
+      const validated = payload.validated_output || {};
+      outputer.result.appendChild(
+        outputerSection("Summary", "p", validated.summary || "")
+      );
+      outputer.result.appendChild(
+        outputerSection("Why selected", "p", validated.why_selected || "")
+      );
+      outputer.result.appendChild(
+        outputerListSection("Replication steps", "ol", validated.replication_steps || [])
+      );
+      outputer.result.appendChild(
+        outputerListSection("Caveats", "ul", validated.caveats || [])
+      );
+    }
+
+    function outputerSection(title, tag, body) {
+      const section = document.createElement("div");
+      section.className = "outputer-section";
+      const h = document.createElement("h4");
+      h.textContent = title;
+      section.appendChild(h);
+      const node = document.createElement(tag);
+      node.textContent = body;
+      section.appendChild(node);
+      return section;
+    }
+
+    function outputerListSection(title, tag, items) {
+      const section = document.createElement("div");
+      section.className = "outputer-section";
+      const h = document.createElement("h4");
+      h.textContent = title;
+      section.appendChild(h);
+      const list = document.createElement(tag);
+      if (!Array.isArray(items) || items.length === 0) {
+        const li = document.createElement("li");
+        li.textContent = "(none)";
+        list.appendChild(li);
+      } else {
+        items.forEach(item => {
+          const li = document.createElement("li");
+          li.textContent = String(item);
+          list.appendChild(li);
+        });
+      }
+      section.appendChild(list);
+      return section;
+    }
+
+    function setOutputerEnabled() {
+      outputer.generate.disabled = !latestAdvisoryRun;
+      if (latestAdvisoryRun) {
+        setOutputerStatus("Ready to generate narration.", "muted");
+      }
+    }
+
+    async function generateOutputerNarration() {
+      if (!latestAdvisoryRun) {
+        setOutputerStatus("Run the wrapper first.", "err");
+        return;
+      }
+      outputer.generate.disabled = true;
+      setOutputerStatus("Generating...", "muted");
+      try {
+        const response = await fetch("/advisory/nyahlothep/output", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            selected_report: latestAdvisoryRun.selected_report,
+            replication_recipe: latestAdvisoryRun.replication_recipe,
+            style: outputer.style.value
+          })
+        });
+        const payload = await response.json();
+        if (!response.ok) {
+          // Visible error: detail string from FastAPI / outputer validator.
+          const message = (payload && payload.detail) ? payload.detail : response.statusText;
+          throw new Error(message);
+        }
+        renderOutputerOutput(payload);
+        setOutputerStatus(
+          payload.cached ? "Served from cache." : "Generated.",
+          payload.cached ? "cached" : "ok"
+        );
+      } catch (error) {
+        clearOutputerOutput("No narration available.");
+        setOutputerStatus(
+          "Failed: " + (error && error.message ? error.message : "unknown error"),
+          "err"
+        );
+      } finally {
+        outputer.generate.disabled = !latestAdvisoryRun;
+      }
     }
 
     function setCopyFeedback(message, state) {
@@ -900,6 +1121,7 @@ DASHBOARD_HTML = """<!doctype html>
     copyBtn.addEventListener("click", copyJson);
     advisory.run.addEventListener("click", runWrapper);
     advisory.load.addEventListener("click", loadSelectedCandidate);
+    outputer.generate.addEventListener("click", generateOutputerNarration);
 
     form.addEventListener("submit", evaluate);
     fetch("/health")

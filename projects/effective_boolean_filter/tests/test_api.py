@@ -118,6 +118,36 @@ def test_dashboard_no_inline_event_handlers():
         assert attr not in body, f"inline event handler {attr!r} found in dashboard"
 
 
+def test_dashboard_has_outputer_panel():
+    """Nyahlothep outputer V1 panel must exist and reference the new endpoint."""
+    body = _client().get("/").text
+    for fragment in (
+        'id="outputer-section"',
+        'id="outputer-style"',
+        'id="generate-output"',
+        'id="outputer-status"',
+        'id="outputer-result"',
+        "/advisory/nyahlothep/output",
+        # all three styles in the select
+        'value="brief"',
+        'value="technical"',
+        'value="replication"',
+    ):
+        assert fragment in body, f"missing outputer fragment {fragment!r}"
+
+
+def test_dashboard_outputer_renders_via_textContent():
+    """Outputer JS must build DOM nodes via textContent — never innerHTML
+    — for each validated_output field. We grep for the calls."""
+    body = _client().get("/").text
+    # signature calls present
+    assert "renderOutputerOutput" in body
+    assert ".textContent" in body
+    # no innerHTML escape hatch in the outputer code path
+    # (the dashboard nowhere uses innerHTML; this guard catches future regressions)
+    assert ".innerHTML" not in body
+
+
 def test_get_report_round_trip():
     client = _client()
     r = client.post(
