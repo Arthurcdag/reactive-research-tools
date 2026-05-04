@@ -8,6 +8,7 @@ introduce a malformed payload.
 """
 from __future__ import annotations
 
+import copy
 import hashlib
 import json
 import threading
@@ -66,11 +67,11 @@ class LLMResponseCache:
     def get(self, key: CacheKey) -> dict[str, Any] | None:
         with self._lock:
             value = self._data.get(key.to_string())
-            return dict(value) if value is not None else None
+            return copy.deepcopy(value) if value is not None else None
 
     def put(self, key: CacheKey, value: dict[str, Any]) -> None:
         with self._lock:
-            self._data[key.to_string()] = dict(value)
+            self._data[key.to_string()] = copy.deepcopy(value)
 
     def __len__(self) -> int:
         with self._lock:

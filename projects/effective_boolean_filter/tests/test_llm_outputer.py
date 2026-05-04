@@ -347,12 +347,16 @@ def test_validated_output_dict_is_a_copy_per_call():
         style="brief", client=client, cache=cache,
     )
     r1.validated_output["summary"] = "POISONED"
+    r1.validated_output["replication_steps"][0] = "POISONED STEP"
+    r1.validated_output["caveats"].append("POISONED CAVEAT")
     r2 = generate_outputer(
         selected_report=SELECTED, replication_recipe=RECIPE,
         style="brief", client=client, cache=cache,
     )
     assert r2.cached is True
     assert r2.validated_output["summary"] != "POISONED"
+    assert r2.validated_output["replication_steps"][0] != "POISONED STEP"
+    assert "POISONED CAVEAT" not in r2.validated_output["caveats"]
 
 
 # ----------------------------------------------------------------------
