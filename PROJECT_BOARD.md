@@ -37,7 +37,8 @@
 - [x] Nyahlothep report-based selection
 - [x] Advisory API endpoints
 - [x] Dashboard wrapper panel
-- [ ] Nyahlothep/outputer live LLM plumbing behind structured validation
+- [x] Nyahlothep/outputer LLM plumbing behind structured validation
+- [x] Trace + gate lite provenance for advisory selection
 - [ ] Azatoth/inputer live LLM candidate generation behind shared plumbing
 
 ### Deferred

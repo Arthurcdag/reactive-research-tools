@@ -169,6 +169,15 @@ rate limiting.
    - Calibrate against the 55-example benchmark — a regression there is
      a verdict regression.
 
+9. ~~Add advisory trace + gate lite.~~ Implemented in this change.
+   - `trace_gate.py` provides deterministic `PipelineTrace` stages and
+     promotion/reality-gate receipts for advisory provenance.
+   - `/advisory/run` and `/advisory/nyahlothep` keep their existing
+     response fields and add `trace` plus `gates` metadata.
+   - The dashboard shows compact trace/gate status downstream of
+     selection; it does not influence the verdict.
+   - This is infrastructure for Azatoth inputer V1, not live provider work.
+
 ## Suggested Work Order
 
 1. Create a new branch from `main`.

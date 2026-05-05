@@ -54,6 +54,7 @@ from .llm_outputer import (
     outputer_result_to_dict,
 )
 from .llm_cache import LLMResponseCache
+from .trace_gate import PipelineInvariantError
 
 
 if _HAS_PYDANTIC:
@@ -259,19 +260,25 @@ def create_app(
             )
             for c in body.candidates
         ]
-        run = run_nyahlothep_on_candidates(seed=body.seed, candidates=candidates)
+        try:
+            run = run_nyahlothep_on_candidates(seed=body.seed, candidates=candidates)
+        except PipelineInvariantError as exc:
+            raise HTTPException(status_code=500, detail=str(exc))
         out = advisory_run_to_dict(run)
         reports.put(run.selected_report.id, out["selected_report"])
         return out
 
     @app.post("/advisory/run")
     def advisory_run(body: AdvisoryGenerateBody) -> dict[str, Any]:
-        run = run_advisory_wrapper(
-            body.seed,
-            context=body.context,
-            count=body.count,
-            strictness=body.strictness,  # type: ignore[arg-type]
-        )
+        try:
+            run = run_advisory_wrapper(
+                body.seed,
+                context=body.context,
+                count=body.count,
+                strictness=body.strictness,  # type: ignore[arg-type]
+            )
+        except PipelineInvariantError as exc:
+            raise HTTPException(status_code=500, detail=str(exc))
         out = advisory_run_to_dict(run)
         reports.put(run.selected_report.id, out["selected_report"])
         return out

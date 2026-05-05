@@ -95,6 +95,7 @@ def test_dashboard_has_advisory_wrapper_controls():
         'id="advisory-count"',
         'id="run-wrapper"',
         'id="advisory-ranking"',
+        'id="advisory-trace-gates"',
         'id="selected-candidate"',
         'id="load-selected"',
         "/advisory/run",
@@ -107,6 +108,7 @@ def test_dashboard_has_selected_candidate_loading_hooks():
     assert "replication_recipe.selected_candidate" in body
     assert "loadSelectedCandidate" in body
     assert "renderAdvisory" in body
+    assert "renderAdvisoryTraceGates" in body
 
 
 def test_dashboard_no_inline_event_handlers():
