@@ -39,6 +39,13 @@ from .llm_outputer import (
     validate_outputer_payload,
 )
 from .llm_prompts import PROMPT_VERSION, STYLES, render_prompt
+from .trace_gate import (
+    GateReceipts,
+    PipelineInvariantError,
+    PipelineTrace,
+    PromotionReceipt,
+    RealityGateReceipt,
+)
 from .schemas import (
     ArgumentInput,
     ClaimNode,
@@ -62,6 +69,7 @@ __all__ = [
     "DeterministicFakeClient",
     "DisabledLLMClientError",
     "EvaluationReport",
+    "GateReceipts",
     "Issue",
     "LLMClient",
     "LLMProviderUnavailable",
@@ -73,8 +81,12 @@ __all__ = [
     "OutputerResult",
     "OutputerValidationError",
     "PROMPT_VERSION",
+    "PipelineInvariantError",
+    "PipelineTrace",
     "Polarity",
     "Probe",
+    "PromotionReceipt",
+    "RealityGateReceipt",
     "STYLES",
     "ScoreVector",
     "Strictness",

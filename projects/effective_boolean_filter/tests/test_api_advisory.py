@@ -50,16 +50,30 @@ def test_advisory_run_endpoint_selects_and_stores_report():
         "nyahlothep_selection",
         "selected_report",
         "replication_recipe",
+        "trace",
+        "gates",
     ):
         assert key in body
     assert body["mode"] == "contract_v0"
+    assert body["trace"]["mode"] == "pipeline_trace_v0"
+    assert body["trace"]["complete"] is True
+    assert [stage["name"] for stage in body["trace"]["stages"]] == [
+        "request_received",
+        "candidates_generated",
+        "candidates_evaluated",
+        "promotion_decided",
+        "reality_gate_checked",
+        "selected_report_stored",
+    ]
+    assert body["gates"]["promotion"]["status"] == "pass"
+    assert body["gates"]["reality"]["status"] == "pass"
     assert body["nyahlothep_selection"]["selected_candidate_id"] == (
         "cand_001_clean_double_negation"
     )
     selected_id = body["selected_report"]["id"]
     stored = client.get(f"/reports/{selected_id}")
     assert stored.status_code == 200
-    assert stored.json()["id"] == selected_id
+    assert stored.json() == body["selected_report"]
 
 
 def test_advisory_nyahlothep_endpoint_selects_caller_candidates():
@@ -97,6 +111,10 @@ def test_advisory_nyahlothep_endpoint_selects_caller_candidates():
     )
     assert r.status_code == 200
     body = r.json()
+    assert body["trace"]["mode"] == "pipeline_trace_v0"
+    assert body["trace"]["complete"] is True
+    assert body["gates"]["promotion"]["status"] == "pass"
+    assert body["gates"]["reality"]["status"] == "pass"
     assert body["nyahlothep_selection"]["selected_candidate_id"] == "clean"
     assert body["replication_recipe"]["selected_candidate"]["candidate_id"] == "clean"
 

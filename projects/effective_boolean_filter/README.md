@@ -115,9 +115,14 @@ Response shape:
 - `nyahlothep_selection`
 - `selected_report`
 - `replication_recipe`
+- `trace` with `mode: "pipeline_trace_v0"` and ordered advisory stages
+- `gates` with promotion and reality-gate receipts
 
 Only the selected candidate's report is stored in the report store. Other
 candidate evaluations are returned as ranking summaries.
+
+Trace/gate metadata is provenance only. It proves that the selected report came
+from evaluated filter output; it does not change the deterministic verdict.
 
 ## Output concepts
 

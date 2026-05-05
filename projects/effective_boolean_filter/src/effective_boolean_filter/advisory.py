@@ -13,6 +13,12 @@ from typing import Any, Sequence
 from .engine import evaluate_argument
 from .report import to_json_dict
 from .schemas import EvaluationReport, Strictness
+from .trace_gate import (
+    GateReceipts,
+    PipelineTrace,
+    check_reality_gate,
+    decide_promotion,
+)
 
 
 MODE = "contract_v0"
@@ -58,6 +64,8 @@ class AdvisoryRun:
     nyahlothep_selection: NyahlothepSelection
     selected_report: EvaluationReport
     replication_recipe: dict[str, Any]
+    trace: PipelineTrace
+    gates: GateReceipts
 
 
 def azatoth_generate(
@@ -138,20 +146,52 @@ def run_nyahlothep_on_candidates(
     candidates: Sequence[AdvisoryCandidate],
 ) -> AdvisoryRun:
     """Evaluate caller-provided candidates and select the strongest one."""
-    evaluated = _evaluate_candidates(candidates)
+    candidate_list = list(candidates)
+    run_id = _run_id(seed, candidate_list)
+    trace = PipelineTrace(run_id=run_id)
+    trace.record(
+        "request_received",
+        {"seed": _clean_seed(seed) if seed else "", "candidate_count": len(candidate_list)},
+    )
+    trace.record(
+        "candidates_generated",
+        [advisory_candidate_to_dict(candidate) for candidate in candidate_list],
+    )
+
+    evaluated = _evaluate_candidates(candidate_list)
+    evaluated_evidence = _evaluated_evidence(evaluated)
+    trace.record("candidates_evaluated", evaluated_evidence)
+
     selection = nyahlothep_select(evaluated)
     selected_eval = next(
         ev for ev in evaluated
         if ev.candidate.candidate_id == selection.selected_candidate_id
     )
+    selected_report = to_json_dict(selected_eval.report)
+    promotion = decide_promotion(
+        evaluated=evaluated_evidence,
+        selection=_selection_to_dict(selection),
+        selected_report_id=selected_report["id"],
+    )
+    trace.record("promotion_decided", promotion.to_dict())
+    reality = check_reality_gate(
+        trace=trace,
+        promotion=promotion,
+        selected_report=selected_report,
+    )
+    trace.record("reality_gate_checked", reality.to_dict())
+    trace.record("selected_report_stored", selected_report)
+
     recipe = _replication_recipe(seed, selected_eval.candidate, selection.rank_reason)
     return AdvisoryRun(
-        id=_run_id(seed, candidates),
+        id=run_id,
         mode=MODE,
-        azatoth_candidates=list(candidates),
+        azatoth_candidates=candidate_list,
         nyahlothep_selection=selection,
         selected_report=selected_eval.report,
         replication_recipe=recipe,
+        trace=trace,
+        gates=GateReceipts(promotion=promotion, reality=reality),
     )
 
 
@@ -181,6 +221,8 @@ def advisory_run_to_dict(run: AdvisoryRun) -> dict[str, Any]:
         },
         "selected_report": to_json_dict(run.selected_report),
         "replication_recipe": run.replication_recipe,
+        "trace": run.trace.to_dict(),
+        "gates": run.gates.to_dict(),
     }
 
 
@@ -200,6 +242,27 @@ def _evaluate_candidates(
             CandidateEvaluation(candidate=candidate, report=report, ordinal=idx)
         )
     return evaluated
+
+
+def _evaluated_evidence(
+    evaluated: Sequence[CandidateEvaluation],
+) -> list[dict[str, Any]]:
+    return [
+        {
+            "candidate": advisory_candidate_to_dict(ev.candidate),
+            "report": to_json_dict(ev.report),
+            "ordinal": ev.ordinal,
+        }
+        for ev in evaluated
+    ]
+
+
+def _selection_to_dict(selection: NyahlothepSelection) -> dict[str, Any]:
+    return {
+        "selected_candidate_id": selection.selected_candidate_id,
+        "rank_reason": selection.rank_reason,
+        "ranking": selection.ranking,
+    }
 
 
 def _rank_tuple(ev: CandidateEvaluation) -> tuple[float, ...]:

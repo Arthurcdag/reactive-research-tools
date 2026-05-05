@@ -577,6 +577,10 @@ DASHBOARD_HTML = """<!doctype html>
             <ol class="list" id="advisory-ranking"><li class="empty">No wrapper run yet.</li></ol>
           </section>
           <section class="section">
+            <h3>Trace + gates</h3>
+            <ul class="list" id="advisory-trace-gates"><li class="empty">No trace yet.</li></ul>
+          </section>
+          <section class="section">
             <h3>Selected candidate</h3>
             <div id="selected-candidate" class="empty">No selection yet.</div>
           </section>
@@ -658,6 +662,7 @@ DASHBOARD_HTML = """<!doctype html>
       load: document.querySelector("#load-selected"),
       status: document.querySelector("#advisory-status"),
       ranking: document.querySelector("#advisory-ranking"),
+      traceGates: document.querySelector("#advisory-trace-gates"),
       selected: document.querySelector("#selected-candidate")
     };
     const outputer = {
@@ -856,6 +861,39 @@ DASHBOARD_HTML = """<!doctype html>
       });
     }
 
+    function renderAdvisoryTraceGates(run) {
+      const rows = [];
+      if (run.trace && Array.isArray(run.trace.stages)) {
+        run.trace.stages.forEach(stage => {
+          rows.push({
+            state: stage.status === "pass" ? "ok" : "warning",
+            label: stage.name,
+            detail: stage.evidence_hash
+          });
+        });
+      }
+      if (run.gates && run.gates.promotion) {
+        rows.push({
+          state: run.gates.promotion.status === "pass" ? "ok" : "warning",
+          label: "promotion_gate",
+          detail: run.gates.promotion.evidence_hash
+        });
+      }
+      if (run.gates && run.gates.reality) {
+        rows.push({
+          state: run.gates.reality.status === "pass" ? "ok" : "warning",
+          label: "reality_gate",
+          detail: run.gates.reality.evidence_hash
+        });
+      }
+      setList(
+        advisory.traceGates,
+        rows,
+        row => item(row.state, row.label, row.detail),
+        "No trace yet."
+      );
+    }
+
     function renderAdvisory(run) {
       latestAdvisoryRun = run;
       const selection = run.nyahlothep_selection;
@@ -872,6 +910,7 @@ DASHBOARD_HTML = """<!doctype html>
         ),
         "No candidates ranked."
       );
+      renderAdvisoryTraceGates(run);
       renderSelectedCandidate(candidate, selection);
       advisory.load.disabled = false;
       setAdvisoryStatus("selected");

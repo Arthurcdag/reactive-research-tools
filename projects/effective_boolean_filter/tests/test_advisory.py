@@ -106,6 +106,10 @@ def test_run_advisory_wrapper_returns_contract_v0_selection_and_recipe():
     run = run_advisory_wrapper("X is true", context="science", count=8)
     assert run.mode == "contract_v0"
     assert len(run.azatoth_candidates) == 8
+    assert run.trace.mode == "pipeline_trace_v0"
+    assert run.trace.complete is True
+    assert run.gates.promotion.status == "pass"
+    assert run.gates.reality.status == "pass"
     assert run.nyahlothep_selection.selected_candidate_id == (
         "cand_001_clean_double_negation"
     )
