@@ -161,13 +161,67 @@ rate limiting.
      mismatch, disabled provider, and the no-mutation invariant.
      `tests/test_api.py` adds two dashboard-hookup regressions.
 
-8. Build Azatoth inputer.
-   - Reuse the `LLMClient`, `LLMResponseCache`, prompt-versioning, and
-     JSON-validation plumbing from V1.
-   - Inputer must produce candidate JSON only; every candidate still
-     passes through the deterministic filter before selection.
-   - Calibrate against the 55-example benchmark — a regression there is
-     a verdict regression.
+8. ~~Build Azatoth inputer V1 (bounded monkey/typewriter swarm).~~ ✅
+   Shipped on branch `codex/azatoth-inputer-v1`.
+   - `llm_prompts.py`: adds `INPUTER_PROMPT_VERSION =
+     "azatoth_inputer_v1"`, `INPUTER_SYSTEM_PROMPT`, and
+     `render_inputer_prompt(seed, context, count, pool_size, strictness)`.
+   - `llm_cache.py`: adds `InputerCacheKey` with a **separate shape**
+     (`prompt_version, provider, model, seed_hash, context_hash,
+     strictness, count, pool_size`) plus an `inputer/` namespace prefix
+     so seed data is never confused with a report key.
+   - `llm_client.py`: extends `DeterministicFakeClient.generate` so
+     `prompt_version="azatoth_inputer_v1"` returns a deterministic
+     monkey/typewriter pool of up to 80 unique candidates from 16
+     rhetorical templates × 5 mutation cycles.
+   - `llm_inputer.py`: orchestrates generate → strict-validate →
+     dedupe (case-folded, whitespace-collapsed) → slice to exactly
+     `count`. `count ∈ [1,20]`; `pool_size` defaults to
+     `min(max(count*4, 16), 80)` and is hard-capped at 80. Insufficient
+     unique candidates raise `InputerValidationError` visibly — there
+     is no silent shrink or pad. The cache stores **validated**
+     candidate output only.
+   - `POST /advisory/azatoth/input`: returns `{mode,
+     provider, model, cache_key, cached, pool_size, valid_count,
+     deduped_count, azatoth_candidates}`.
+   - `POST /advisory/run`: extended with optional `source ∈
+     {deterministic, inputer}` and optional `pool_size`. Default stays
+     `deterministic` for backwards compatibility. The `inputer` path
+     generates candidates → existing filter evaluates them →
+     Nyahlothep selects from filter reports. Response gains
+     `azatoth_source` and (when `source=inputer`) an
+     `azatoth_inputer` block with the same status fields the
+     `/input` endpoint returns.
+   - The deterministic engine remains the only verdict source; the
+     inputer never alters polarity, scores, issues, or selection.
+     `/advisory/azatoth` (deterministic-only) is unchanged.
+   - Dashboard: adds an "Azatoth source" select inside the wrapper
+     panel and an inputer-status block (provider, model, cached,
+     pool size, valid, deduped, returned) that fills via
+     `textContent` only. CSP, no-inline-handler invariant, and all
+     security headers unchanged.
+   - Tests: `tests/test_llm_inputer.py` (40 unit tests) and
+     `tests/test_api_azatoth_input.py` (26 endpoint tests) cover
+     happy path, count and pool bounds, default-pool rule, all
+     three styles of validation failure (invalid JSON, missing
+     fields, unexpected extras, wrong types, over-length values,
+     bad strictness), duplicate-only pool, insufficient unique
+     candidates, cache hit and namespace isolation from outputer,
+     deep-copy cache safety, no-input-mutation, the disabled
+     provider path returning 503, the `source=inputer` path on
+     `/advisory/run`, and the backwards-compat default. Two new
+     dashboard regressions in `tests/test_api.py` lock in the new
+     fragments and the textContent invariant.
+
+9. Real provider adapter behind ``EBF_LLM_PROVIDER``.
+   - Slot is reserved; selecting any non-fake value raises
+     `DisabledLLMClientError` with a visible message.
+   - Outputer (V1) and inputer (V1) both go through the same
+     `LLMClient` interface, so a single adapter PR enables live LLM
+     calls for both halves.
+   - The implementer should consult the official Anthropic SDK docs
+     at the time of the PR for prompt-caching usage and structured
+     output handling.
 
 9. ~~Add advisory trace + gate lite.~~ Implemented in this change.
    - `trace_gate.py` provides deterministic `PipelineTrace` stages and

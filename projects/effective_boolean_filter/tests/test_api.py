@@ -150,6 +150,36 @@ def test_dashboard_outputer_renders_via_textContent():
     assert ".innerHTML" not in body
 
 
+def test_dashboard_has_azatoth_source_control():
+    """Inputer V1 surface: source select with both options + inputer
+    status panel + the new endpoint reference."""
+    body = _client().get("/").text
+    for fragment in (
+        'id="advisory-source"',
+        'value="deterministic"',
+        'value="inputer"',
+        'id="inputer-status-section"',
+        'id="inputer-provider"',
+        'id="inputer-model"',
+        'id="inputer-cached"',
+        'id="inputer-pool"',
+        'id="inputer-valid"',
+        'id="inputer-deduped"',
+        'id="inputer-returned"',
+    ):
+        assert fragment in body, f"missing inputer fragment {fragment!r}"
+
+
+def test_dashboard_inputer_renders_via_textContent():
+    """Inputer panel JS must use textContent and never innerHTML."""
+    body = _client().get("/").text
+    assert "renderInputerStatus" in body
+    # advisory.source is read into the run body
+    assert "source: advisory.source.value" in body
+    # safety carry-over: still no innerHTML anywhere
+    assert ".innerHTML" not in body
+
+
 def test_get_report_round_trip():
     client = _client()
     r = client.post(
