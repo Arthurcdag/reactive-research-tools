@@ -139,6 +139,8 @@ EBF_LLM_MODEL=claude-sonnet-4-5 \
 
 The provider is advisory only. Its JSON is still validated before use, and the
 deterministic filter remains the only verdict source.
+The dashboard also exposes a no-network provider status check so config can be
+verified without sending seed/report data to a provider.
 
 Run the Xi–Jensen dashboard if the corresponding generated scripts and dependencies are present:
 

@@ -186,10 +186,33 @@ def test_dashboard_has_advisory_ledger_replay_controls():
         assert fragment in body, f"missing ledger fragment {fragment!r}"
 
 
+def test_dashboard_has_provider_status_controls():
+    body = _client().get("/").text
+    for fragment in (
+        'id="provider-status-section"',
+        'id="provider-name"',
+        'id="provider-model"',
+        'id="provider-configured"',
+        'id="check-provider"',
+        'id="provider-status-message"',
+        "/advisory/provider/status",
+        "checkProviderStatus",
+        "renderProviderStatus",
+    ):
+        assert fragment in body, f"missing provider status fragment {fragment!r}"
+
+
 def test_dashboard_ledger_renders_via_textContent():
     body = _client().get("/").text
     assert "advisory.ledgerEntry.textContent" in body
     assert "advisory.ledgerStatus.textContent" in body
+    assert ".innerHTML" not in body
+
+
+def test_dashboard_provider_status_renders_via_textContent():
+    body = _client().get("/").text
+    assert "advisory.providerFields.name.textContent" in body
+    assert "advisory.providerFields.message.textContent" in body
     assert ".innerHTML" not in body
 
 

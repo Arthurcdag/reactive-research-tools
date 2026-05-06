@@ -394,6 +394,75 @@ def get_client(*, env: Mapping[str, str] | None = None) -> LLMClient:
     )
 
 
+def provider_status(*, env: Mapping[str, str] | None = None) -> dict[str, Any]:
+    """Return a no-network provider configuration summary.
+
+    This is safe to show in the local dashboard: it reports whether the
+    required knobs are present, but never returns provider credentials.
+    """
+    source = dict(env) if env is not None else dict(os.environ)
+    provider = (source.get("EBF_LLM_PROVIDER") or "").strip().lower()
+    if not provider or provider == "fake":
+        return {
+            "provider": DeterministicFakeClient.PROVIDER,
+            "configured": True,
+            "live": False,
+            "model": DeterministicFakeClient.MODEL,
+            "errors": [],
+        }
+    if provider != "anthropic":
+        return {
+            "provider": provider,
+            "configured": False,
+            "live": False,
+            "model": None,
+            "errors": [
+                "Unsupported provider. Use unset/fake or anthropic.",
+            ],
+        }
+
+    errors: list[str] = []
+    api_key = source.get("ANTHROPIC_API_KEY", "")
+    model = source.get("EBF_LLM_MODEL", "")
+    version = source.get("EBF_ANTHROPIC_VERSION", AnthropicClient.DEFAULT_VERSION)
+    base_url = source.get("EBF_LLM_BASE_URL", AnthropicClient.DEFAULT_BASE_URL)
+    max_tokens_raw = source.get("EBF_LLM_MAX_TOKENS")
+
+    if not isinstance(api_key, str) or not api_key.strip():
+        errors.append("ANTHROPIC_API_KEY is required")
+    if not isinstance(model, str) or not model.strip():
+        errors.append("EBF_LLM_MODEL is required")
+    if not isinstance(version, str) or not version.strip():
+        errors.append("EBF_ANTHROPIC_VERSION must be non-empty")
+    try:
+        base_url_clean = _require_base_url(base_url)
+    except DisabledLLMClientError as exc:
+        base_url_clean = None
+        errors.append(str(exc))
+    try:
+        max_tokens = _parse_max_tokens(
+            max_tokens_raw,
+            default=AnthropicClient.DEFAULT_MAX_TOKENS,
+        )
+    except DisabledLLMClientError as exc:
+        max_tokens = None
+        errors.append(str(exc))
+
+    return {
+        "provider": "anthropic",
+        "configured": not errors,
+        "live": True,
+        "model": model.strip() if isinstance(model, str) and model.strip() else None,
+        "anthropic_version": version.strip()
+        if isinstance(version, str) and version.strip()
+        else None,
+        "base_url": base_url_clean,
+        "max_tokens": max_tokens,
+        "credential_present": bool(isinstance(api_key, str) and api_key.strip()),
+        "errors": errors,
+    }
+
+
 def _require_config(value: Any, env_name: str) -> str:
     if not isinstance(value, str) or not value.strip():
         raise DisabledLLMClientError(f"{env_name} is required for Anthropic provider")

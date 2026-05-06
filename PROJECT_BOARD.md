@@ -42,6 +42,7 @@
 - [x] Opt-in advisory ledger + deterministic replay verification
 - [x] Anthropic provider adapter behind shared LLM plumbing
 - [x] Azatoth/inputer live LLM candidate generation behind shared plumbing
+- [x] No-network advisory provider status/preflight
 
 ### Deferred
 - [ ] Full LLM advisory parser/probe wrapper provider integration

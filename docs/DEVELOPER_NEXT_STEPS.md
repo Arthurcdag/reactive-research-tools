@@ -253,6 +253,15 @@ rate limiting.
    - Dashboard adds a compact ledger/replay strip using `textContent` only;
      CSP and no-inline-handler constraints remain unchanged.
 
+11. ~~Add advisory provider status/preflight.~~ Implemented in this change.
+   - `llm_client.provider_status()` reports fake/Anthropic config readiness
+     without constructing a provider request or exposing credential values.
+   - Adds `GET /advisory/provider/status` for dashboard/local checks.
+   - Dashboard adds a compact provider-status strip with a manual refresh
+     button and initial load check, rendered with `textContent` only.
+   - Tests cover fake default, valid Anthropic config, malformed Anthropic
+     config, unsupported providers, the API endpoint, and dashboard hooks.
+
 ## Suggested Work Order
 
 1. Create a new branch from `main`.
