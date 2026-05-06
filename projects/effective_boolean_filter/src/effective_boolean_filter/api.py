@@ -5,6 +5,7 @@ Endpoints:
   POST /generate_probes
   POST /score_probe_results
   POST /advisory/azatoth
+  POST /advisory/azatoth/input
   POST /advisory/nyahlothep
   POST /advisory/nyahlothep/output
   POST /advisory/run
@@ -53,6 +54,11 @@ from .llm_outputer import (
     generate_outputer,
     outputer_result_to_dict,
 )
+from .llm_inputer import (
+    InputerValidationError,
+    generate_inputer,
+    inputer_result_to_dict,
+)
 from .llm_cache import LLMResponseCache
 from .trace_gate import PipelineInvariantError
 
@@ -88,6 +94,23 @@ if _HAS_PYDANTIC:
         context: str = Field("", max_length=2000)
         count: int = Field(8, ge=1, le=20)
         strictness: str = Field("medium", pattern="^(low|medium|high)$")
+
+    class AzatothInputBody(BaseModel):  # type: ignore[misc]
+        seed: str = Field(..., min_length=1, max_length=4000)
+        context: str = Field("", max_length=2000)
+        count: int = Field(8, ge=1, le=20)
+        strictness: str = Field("medium", pattern="^(low|medium|high)$")
+        # pool_size is optional; the wrapper applies the default rule
+        # min(max(count*4, 16), 80) when omitted.
+        pool_size: int | None = Field(None, ge=1, le=80)
+
+    class AdvisoryRunBody(BaseModel):  # type: ignore[misc]
+        seed: str = Field(..., min_length=1, max_length=4000)
+        context: str = Field("", max_length=2000)
+        count: int = Field(8, ge=1, le=20)
+        strictness: str = Field("medium", pattern="^(low|medium|high)$")
+        source: str = Field("deterministic", pattern="^(deterministic|inputer)$")
+        pool_size: int | None = Field(None, ge=1, le=80)
 
     class AdvisoryCandidateBody(BaseModel):  # type: ignore[misc]
         candidate_id: str = Field(..., min_length=1, max_length=120)
@@ -246,6 +269,28 @@ def create_app(
             ],
         }
 
+    @app.post("/advisory/azatoth/input")
+    def advisory_azatoth_input(body: AzatothInputBody) -> dict[str, Any]:
+        try:
+            result = generate_inputer(
+                seed=body.seed,
+                context=body.context,
+                count=body.count,
+                strictness=body.strictness,
+                pool_size=body.pool_size,
+                client=llm_client,
+                cache=outputer_cache,
+            )
+        except DisabledLLMClientError as exc:
+            raise HTTPException(status_code=503, detail=str(exc))
+        except LLMProviderUnavailable as exc:
+            raise HTTPException(status_code=502, detail=str(exc))
+        except LLMTimeoutError as exc:
+            raise HTTPException(status_code=504, detail=str(exc))
+        except InputerValidationError as exc:
+            raise HTTPException(status_code=422, detail=str(exc))
+        return inputer_result_to_dict(result)
+
     @app.post("/advisory/nyahlothep")
     def advisory_nyahlothep(body: AdvisorySelectBody) -> dict[str, Any]:
         candidates = [
@@ -269,17 +314,62 @@ def create_app(
         return out
 
     @app.post("/advisory/run")
-    def advisory_run(body: AdvisoryGenerateBody) -> dict[str, Any]:
+    def advisory_run(body: AdvisoryRunBody) -> dict[str, Any]:
+        if body.source == "deterministic":
+            try:
+                run = run_advisory_wrapper(
+                    body.seed,
+                    context=body.context,
+                    count=body.count,
+                    strictness=body.strictness,  # type: ignore[arg-type]
+                )
+            except PipelineInvariantError as exc:
+                raise HTTPException(status_code=500, detail=str(exc))
+            out = advisory_run_to_dict(run)
+            out["azatoth_source"] = "deterministic"
+            reports.put(run.selected_report.id, out["selected_report"])
+            return out
+
+        # body.source == "inputer"
         try:
-            run = run_advisory_wrapper(
-                body.seed,
+            inputer_result = generate_inputer(
+                seed=body.seed,
                 context=body.context,
                 count=body.count,
-                strictness=body.strictness,  # type: ignore[arg-type]
+                strictness=body.strictness,
+                pool_size=body.pool_size,
+                client=llm_client,
+                cache=outputer_cache,
+            )
+        except DisabledLLMClientError as exc:
+            raise HTTPException(status_code=503, detail=str(exc))
+        except LLMProviderUnavailable as exc:
+            raise HTTPException(status_code=502, detail=str(exc))
+        except LLMTimeoutError as exc:
+            raise HTTPException(status_code=504, detail=str(exc))
+        except InputerValidationError as exc:
+            raise HTTPException(status_code=422, detail=str(exc))
+
+        try:
+            run = run_nyahlothep_on_candidates(
+                seed=body.seed,
+                candidates=inputer_result.azatoth_candidates,
             )
         except PipelineInvariantError as exc:
             raise HTTPException(status_code=500, detail=str(exc))
+
         out = advisory_run_to_dict(run)
+        out["azatoth_source"] = "inputer"
+        out["azatoth_inputer"] = {
+            "mode": inputer_result.mode,
+            "provider": inputer_result.provider,
+            "model": inputer_result.model,
+            "cache_key": inputer_result.cache_key,
+            "cached": inputer_result.cached,
+            "pool_size": inputer_result.pool_size,
+            "valid_count": inputer_result.valid_count,
+            "deduped_count": inputer_result.deduped_count,
+        }
         reports.put(run.selected_report.id, out["selected_report"])
         return out
 

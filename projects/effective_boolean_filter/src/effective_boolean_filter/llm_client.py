@@ -91,21 +91,42 @@ class DeterministicFakeClient(LLMClient):
         return self.MODEL
 
     def generate(self, request: LLMRequest) -> LLMResponse:
-        if request.style in self._scripted:
-            return LLMResponse(
-                raw_text=self._scripted[request.style],
-                provider=self.PROVIDER,
-                model=self.MODEL,
-            )
+        # scripted overrides take precedence so tests can exercise error paths.
+        # Keyed by style for the outputer; keyed by prompt_version + style or
+        # by prompt_version alone for the inputer (style is not used there).
+        for key in (request.style, request.prompt_version,
+                    f"{request.prompt_version}:{request.style}"):
+            if key and key in self._scripted:
+                return LLMResponse(
+                    raw_text=self._scripted[key],
+                    provider=self.PROVIDER,
+                    model=self.MODEL,
+                )
+
+        # Branch on prompt_version. Any future prompt family adds a new
+        # branch here; the default outputer branch stays unchanged.
+        if request.prompt_version == "azatoth_inputer_v1":
+            raw_text = self._render_inputer_pool(request.user)
+        else:
+            raw_text = self._render_outputer_stub(request.user, request.style)
+
+        return LLMResponse(
+            raw_text=raw_text,
+            provider=self.PROVIDER,
+            model=self.MODEL,
+        )
+
+    @staticmethod
+    def _render_outputer_stub(user_message: str, style: str) -> str:
         try:
-            payload = json.loads(request.user)
+            payload = json.loads(user_message)
             report_id = payload.get("selected_report", {}).get("id", "unknown")
         except (json.JSONDecodeError, AttributeError):
             report_id = "unknown"
         stub = {
-            "summary": f"Deterministic fake summary for style={request.style}.",
+            "summary": f"Deterministic fake summary for style={style}.",
             "why_selected": (
-                f"Fake client ran for style {request.style!r}; "
+                f"Fake client ran for style {style!r}; "
                 f"source report {report_id!r}."
             ),
             "replication_steps": [
@@ -118,11 +139,142 @@ class DeterministicFakeClient(LLMClient):
             ],
             "source_report_id": report_id,
         }
-        return LLMResponse(
-            raw_text=json.dumps(stub),
-            provider=self.PROVIDER,
-            model=self.MODEL,
-        )
+        return json.dumps(stub)
+
+    # Deterministic monkey/typewriter pool for the Azatoth inputer.
+    # Sixteen rhetorical templates × up to five mutation cycles cover the
+    # full pool_size range (1..80). Each (template, cycle) combination
+    # yields a unique (claim, argument) pair so the wrapper's dedupe step
+    # leaves the pool intact unless a test deliberately injects duplicates.
+    _INPUTER_TEMPLATES: tuple[tuple[str, str, str], ...] = (
+        # (template_name, claim_form, argument_form)
+        # Use {seed} for substitution. The argument_form may use {seed}
+        # multiple times.
+        (
+            "clean_double_negation",
+            "{seed}",
+            "It is not the case that not {seed}. Therefore {seed}.",
+        ),
+        (
+            "double_negation_paraphrase",
+            "{seed}",
+            "Not not {seed}. Therefore {seed}.",
+        ),
+        (
+            "not_false_paraphrase",
+            "{seed}",
+            "{seed} is not false. Therefore {seed}.",
+        ),
+        (
+            "epistemic_absence",
+            "{seed}",
+            "There is no evidence against {seed}. Therefore {seed}.",
+        ),
+        (
+            "no_one_disproved",
+            "{seed}",
+            "No one has disproved {seed}. Therefore {seed}.",
+        ),
+        (
+            "simulation_to_production",
+            "{seed} works in production",
+            "{seed} works in simulation. Therefore {seed} works in production.",
+        ),
+        (
+            "legal_to_physical",
+            "{seed} is physically possible",
+            "{seed} is not legally impossible. Therefore {seed} is physically possible.",
+        ),
+        (
+            "possibility_to_actuality",
+            "{seed} is true",
+            "{seed} is possible in theory. Therefore {seed} is true.",
+        ),
+        (
+            "fallacy_fallacy",
+            "{seed} is false",
+            "The argument for {seed} is a weak argument. Therefore {seed} is false.",
+        ),
+        (
+            "explains_everything",
+            "{seed}",
+            "{seed} explains everything we observe. Therefore {seed}.",
+        ),
+        (
+            "appeal_to_intuition",
+            "{seed}",
+            "{seed} feels intuitively right. Therefore {seed}.",
+        ),
+        (
+            "consistent_with_data",
+            "{seed} is correct",
+            "{seed} is consistent with our data. Therefore {seed} is correct.",
+        ),
+        (
+            "many_studies",
+            "{seed}",
+            "Many studies report findings consistent with {seed}. Therefore {seed}.",
+        ),
+        (
+            "literal_yes",
+            "{seed}",
+            "{seed}. Therefore {seed}.",
+        ),
+        (
+            "sample_to_scale",
+            "{seed} scales to a million users",
+            "{seed} passed a small sample. Therefore {seed} scales to a million users.",
+        ),
+        (
+            "non_implication",
+            "{seed} follows",
+            "{seed} does not imply deployment readiness. Therefore deployment readiness follows.",
+        ),
+    )
+
+    @classmethod
+    def _render_inputer_pool(cls, user_message: str) -> str:
+        try:
+            payload = json.loads(user_message)
+        except json.JSONDecodeError:
+            payload = {}
+        seed_raw = payload.get("seed", "P")
+        seed = (seed_raw if isinstance(seed_raw, str) else "P").strip() or "P"
+        context = payload.get("context", "") or ""
+        if not isinstance(context, str):
+            context = ""
+        strictness = payload.get("strictness", "medium")
+        if strictness not in ("low", "medium", "high"):
+            strictness = "medium"
+        pool_size_raw = payload.get("pool_size", 16)
+        try:
+            pool_size = max(1, min(80, int(pool_size_raw)))
+        except (TypeError, ValueError):
+            pool_size = 16
+
+        templates = cls._INPUTER_TEMPLATES
+        candidates: list[dict[str, str]] = []
+        for idx in range(pool_size):
+            template_name, claim_form, argument_form = templates[idx % len(templates)]
+            cycle = idx // len(templates)
+            mutation_suffix = ""
+            if cycle:
+                mutation_suffix = f" (variant {cycle + 1})"
+            candidates.append(
+                {
+                    "candidate_id": f"cand_{idx + 1:03d}_{template_name}",
+                    "claim": claim_form.format(seed=seed),
+                    "argument": (argument_form.format(seed=seed) + mutation_suffix).strip(),
+                    "context": context,
+                    "strictness": strictness,
+                    "template": template_name,
+                    "mutation_notes": (
+                        f"monkey/typewriter cycle {cycle + 1} of template "
+                        f"{template_name!r}"
+                    ),
+                }
+            )
+        return json.dumps({"azatoth_candidates": candidates})
 
 
 def get_client(*, env: Mapping[str, str] | None = None) -> LLMClient:

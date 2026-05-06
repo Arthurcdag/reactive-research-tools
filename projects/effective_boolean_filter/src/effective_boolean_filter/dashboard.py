@@ -298,6 +298,41 @@ DASHBOARD_HTML = """<!doctype html>
     .outputer-status.err { color: var(--red); }
     .outputer-status.cached { color: var(--blue); }
 
+    .advisory-source-help {
+      margin: 0;
+      font-size: 12px;
+    }
+
+    .inputer-status {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+      gap: 8px;
+      margin: 0;
+      padding: 0;
+    }
+
+    .inputer-status > div {
+      border: 1px solid var(--line);
+      border-radius: 6px;
+      padding: 6px 8px;
+      background: #ffffff;
+    }
+
+    .inputer-status dt {
+      margin: 0;
+      color: var(--muted);
+      font-size: 11px;
+      font-weight: 700;
+      text-transform: uppercase;
+    }
+
+    .inputer-status dd {
+      margin: 2px 0 0;
+      font-family: var(--mono);
+      font-size: 12px;
+      overflow-wrap: anywhere;
+    }
+
     .outputer-output {
       display: grid;
       gap: 10px;
@@ -560,18 +595,42 @@ DASHBOARD_HTML = """<!doctype html>
               <input id="advisory-count" type="number" min="1" max="20" value="8">
             </label>
           </div>
-          <label>
-            Advisory strictness
-            <select id="advisory-strictness">
-              <option value="low">low</option>
-              <option value="medium" selected>medium</option>
-              <option value="high">high</option>
-            </select>
-          </label>
+          <div class="row">
+            <label>
+              Advisory strictness
+              <select id="advisory-strictness">
+                <option value="low">low</option>
+                <option value="medium" selected>medium</option>
+                <option value="high">high</option>
+              </select>
+            </label>
+            <label>
+              Azatoth source
+              <select id="advisory-source" aria-describedby="advisory-source-help">
+                <option value="deterministic" selected>deterministic</option>
+                <option value="inputer">inputer (LLM, fake)</option>
+              </select>
+            </label>
+          </div>
+          <p class="advisory-source-help muted" id="advisory-source-help">
+            Inputer uses the deterministic fake LLM client by default; no real provider is called in this build.
+          </p>
           <div class="actions">
             <button class="primary" type="button" id="run-wrapper">Run wrapper</button>
             <button class="secondary" type="button" id="load-selected" disabled>Load selected</button>
           </div>
+          <section class="section" id="inputer-status-section" hidden aria-live="polite">
+            <h3>Azatoth inputer status</h3>
+            <dl class="inputer-status" id="inputer-status">
+              <div><dt>Provider</dt><dd id="inputer-provider">-</dd></div>
+              <div><dt>Model</dt><dd id="inputer-model">-</dd></div>
+              <div><dt>Cached</dt><dd id="inputer-cached">-</dd></div>
+              <div><dt>Pool size</dt><dd id="inputer-pool">-</dd></div>
+              <div><dt>Valid</dt><dd id="inputer-valid">-</dd></div>
+              <div><dt>Deduped</dt><dd id="inputer-deduped">-</dd></div>
+              <div><dt>Returned</dt><dd id="inputer-returned">-</dd></div>
+            </dl>
+          </section>
           <section class="section">
             <h3>Candidate ranking</h3>
             <ol class="list" id="advisory-ranking"><li class="empty">No wrapper run yet.</li></ol>
@@ -658,6 +717,17 @@ DASHBOARD_HTML = """<!doctype html>
       context: document.querySelector("#advisory-context"),
       count: document.querySelector("#advisory-count"),
       strictness: document.querySelector("#advisory-strictness"),
+      source: document.querySelector("#advisory-source"),
+      inputerSection: document.querySelector("#inputer-status-section"),
+      inputerFields: {
+        provider: document.querySelector("#inputer-provider"),
+        model: document.querySelector("#inputer-model"),
+        cached: document.querySelector("#inputer-cached"),
+        pool: document.querySelector("#inputer-pool"),
+        valid: document.querySelector("#inputer-valid"),
+        deduped: document.querySelector("#inputer-deduped"),
+        returned: document.querySelector("#inputer-returned")
+      },
       run: document.querySelector("#run-wrapper"),
       load: document.querySelector("#load-selected"),
       status: document.querySelector("#advisory-status"),
@@ -912,6 +982,7 @@ DASHBOARD_HTML = """<!doctype html>
       );
       renderAdvisoryTraceGates(run);
       renderSelectedCandidate(candidate, selection);
+      renderInputerStatus(run);
       advisory.load.disabled = false;
       setAdvisoryStatus("selected");
       renderReport(run.selected_report);
@@ -919,6 +990,28 @@ DASHBOARD_HTML = """<!doctype html>
       // click Generate again to call the outputer for this report.
       clearOutputerOutput("No narration yet for this run.");
       setOutputerEnabled();
+    }
+
+    function renderInputerStatus(run) {
+      const inputer = run && run.azatoth_inputer;
+      if (!inputer) {
+        advisory.inputerSection.hidden = true;
+        return;
+      }
+      advisory.inputerSection.hidden = false;
+      // every value goes through textContent — the inputer payload is
+      // derived from user-supplied seed/context text, so it must stay
+      // text-only.
+      advisory.inputerFields.provider.textContent = String(inputer.provider || "?");
+      advisory.inputerFields.model.textContent = String(inputer.model || "?");
+      advisory.inputerFields.cached.textContent = inputer.cached ? "yes" : "no";
+      advisory.inputerFields.pool.textContent = String(inputer.pool_size);
+      advisory.inputerFields.valid.textContent = String(inputer.valid_count);
+      advisory.inputerFields.deduped.textContent = String(inputer.deduped_count);
+      advisory.inputerFields.returned.textContent = String(
+        (run.azatoth_candidates && run.azatoth_candidates.length) ||
+          (run.replication_recipe && run.replication_recipe.selected_candidate ? "1" : "0")
+      );
     }
 
     async function runWrapper() {
@@ -934,7 +1027,8 @@ DASHBOARD_HTML = """<!doctype html>
             seed: advisory.seed.value,
             context: advisory.context.value,
             count: count,
-            strictness: advisory.strictness.value
+            strictness: advisory.strictness.value,
+            source: advisory.source.value
           })
         });
         const payload = await response.json();
@@ -946,6 +1040,7 @@ DASHBOARD_HTML = """<!doctype html>
         latestAdvisoryRun = null;
         advisory.selected.className = "empty";
         advisory.selected.textContent = String(error);
+        advisory.inputerSection.hidden = true;
         setAdvisoryStatus("failed");
       } finally {
         advisory.run.disabled = false;

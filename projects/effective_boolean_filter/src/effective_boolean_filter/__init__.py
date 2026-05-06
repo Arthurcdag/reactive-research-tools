@@ -30,7 +30,20 @@ from .llm_client import (
     LLMTimeoutError,
     get_client,
 )
-from .llm_cache import LLMResponseCache, derive_cache_key
+from .llm_cache import (
+    InputerCacheKey,
+    LLMResponseCache,
+    derive_cache_key,
+    derive_inputer_cache_key,
+)
+from .llm_inputer import (
+    InputerResult,
+    InputerValidationError,
+    default_pool_size,
+    generate_inputer,
+    inputer_result_to_dict,
+    validate_inputer_payload,
+)
 from .llm_outputer import (
     OutputerResult,
     OutputerValidationError,
@@ -38,7 +51,13 @@ from .llm_outputer import (
     outputer_result_to_dict,
     validate_outputer_payload,
 )
-from .llm_prompts import PROMPT_VERSION, STYLES, render_prompt
+from .llm_prompts import (
+    INPUTER_PROMPT_VERSION,
+    PROMPT_VERSION,
+    STYLES,
+    render_inputer_prompt,
+    render_prompt,
+)
 from .trace_gate import (
     GateReceipts,
     PipelineInvariantError,
@@ -70,6 +89,10 @@ __all__ = [
     "DisabledLLMClientError",
     "EvaluationReport",
     "GateReceipts",
+    "INPUTER_PROMPT_VERSION",
+    "InputerCacheKey",
+    "InputerResult",
+    "InputerValidationError",
     "Issue",
     "LLMClient",
     "LLMProviderUnavailable",
@@ -93,16 +116,22 @@ __all__ = [
     "TransformationStep",
     "advisory_run_to_dict",
     "azatoth_generate",
+    "default_pool_size",
     "derive_cache_key",
+    "derive_inputer_cache_key",
     "evaluate_argument",
+    "generate_inputer",
     "generate_outputer",
     "generate_probes",
     "get_client",
+    "inputer_result_to_dict",
     "nyahlothep_select",
     "outputer_result_to_dict",
+    "render_inputer_prompt",
     "render_prompt",
     "run_advisory_wrapper",
     "to_human",
     "to_json_dict",
+    "validate_inputer_payload",
     "validate_outputer_payload",
 ]
