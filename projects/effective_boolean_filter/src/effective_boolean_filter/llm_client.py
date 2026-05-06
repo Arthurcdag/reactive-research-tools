@@ -1,10 +1,9 @@
-"""LLM client interface, deterministic fake, and provider adapter slot.
+"""LLM client interface, deterministic fake, and Anthropic provider adapter.
 
-The Nyahlothep outputer (and, later, the Azatoth inputer) calls into an
-:class:`LLMClient`. V1 ships only the deterministic fake — that keeps the
-stack runnable without provider keys and without the V1 PR pinning a
-specific SDK version. The real provider adapter slots in behind the same
-``EBF_LLM_PROVIDER`` env var.
+The Nyahlothep outputer and Azatoth inputer call into an
+:class:`LLMClient`. The deterministic fake remains the default so the stack
+runs without provider keys. The live Anthropic adapter is opt-in behind
+``EBF_LLM_PROVIDER=anthropic``.
 
 Design constraints:
 
@@ -14,9 +13,8 @@ Design constraints:
 * User-supplied claim/argument/context text passes through ``LLMRequest``
   as **data**, never as instructions. The system prompt (in
   ``llm_prompts.py``) is the only string the LLM treats as instructions.
-* Tests never call a real provider. They construct
-  :class:`DeterministicFakeClient` directly and (where needed) supply
-  scripted responses.
+* Tests never call a real provider. They construct fakes or inject an HTTP
+  client into :class:`AnthropicClient`.
 """
 from __future__ import annotations
 
@@ -24,7 +22,9 @@ import json
 import os
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
-from typing import Mapping
+from typing import Any, Mapping
+
+import httpx
 
 
 @dataclass(frozen=True)
@@ -277,21 +277,198 @@ class DeterministicFakeClient(LLMClient):
         return json.dumps({"azatoth_candidates": candidates})
 
 
+class AnthropicClient(LLMClient):
+    """Direct Anthropic Messages API adapter using existing httpx."""
+
+    PROVIDER = "anthropic"
+    DEFAULT_BASE_URL = "https://api.anthropic.com"
+    DEFAULT_VERSION = "2023-06-01"
+    DEFAULT_MAX_TOKENS = 4096
+
+    def __init__(
+        self,
+        *,
+        api_key: str,
+        model: str,
+        anthropic_version: str = DEFAULT_VERSION,
+        base_url: str = DEFAULT_BASE_URL,
+        max_tokens: int = DEFAULT_MAX_TOKENS,
+        http_client: Any | None = None,
+    ) -> None:
+        self._api_key = _require_config(api_key, "ANTHROPIC_API_KEY")
+        self._model = _require_config(model, "EBF_LLM_MODEL")
+        self._anthropic_version = _require_config(
+            anthropic_version,
+            "EBF_ANTHROPIC_VERSION",
+        )
+        self._base_url = _require_base_url(base_url)
+        self._max_tokens = _require_positive_int(max_tokens, "EBF_LLM_MAX_TOKENS")
+        self._http_client = http_client if http_client is not None else httpx.Client()
+
+    @property
+    def provider(self) -> str:
+        return self.PROVIDER
+
+    @property
+    def model(self) -> str:
+        return self._model
+
+    def generate(self, request: LLMRequest) -> LLMResponse:
+        url = f"{self._base_url}/v1/messages"
+        headers = {
+            "x-api-key": self._api_key,
+            "anthropic-version": self._anthropic_version,
+            "content-type": "application/json",
+        }
+        payload = {
+            "model": self._model,
+            "max_tokens": self._max_tokens,
+            "temperature": 0,
+            "system": request.system,
+            "messages": [
+                {"role": "user", "content": request.user},
+            ],
+        }
+        try:
+            response = self._http_client.post(
+                url,
+                headers=headers,
+                json=payload,
+                timeout=request.timeout_seconds,
+            )
+        except httpx.TimeoutException as exc:
+            raise LLMTimeoutError("Anthropic provider request timed out") from exc
+        except httpx.HTTPError as exc:
+            raise LLMProviderUnavailable(
+                f"Anthropic provider request failed: {exc}"
+            ) from exc
+
+        if response.status_code >= 400:
+            raise LLMProviderUnavailable(_anthropic_error_message(response))
+
+        try:
+            data = response.json()
+        except ValueError as exc:
+            raise LLMProviderUnavailable(
+                "Anthropic provider returned non-JSON response"
+            ) from exc
+
+        raw_text = _extract_anthropic_text(data)
+        return LLMResponse(
+            raw_text=raw_text,
+            provider=self.provider,
+            model=self.model,
+        )
+
+
 def get_client(*, env: Mapping[str, str] | None = None) -> LLMClient:
     """Resolve a client from env. Default is :class:`DeterministicFakeClient`.
 
-    Set ``EBF_LLM_PROVIDER`` to enable a real provider. V1 reserves the
-    slot but does not ship a real adapter; selecting any non-fake value
-    raises :class:`DisabledLLMClientError` so callers see a visible
-    failure rather than a silent stub.
+    Set ``EBF_LLM_PROVIDER=anthropic`` to enable the live Anthropic adapter.
+    Missing or malformed provider configuration raises
+    :class:`DisabledLLMClientError` so callers see a visible failure rather
+    than a silent stub.
     """
     source = dict(env) if env is not None else dict(os.environ)
     provider = (source.get("EBF_LLM_PROVIDER") or "").strip().lower()
     if not provider or provider == "fake":
         return DeterministicFakeClient()
+    if provider == "anthropic":
+        max_tokens = _parse_max_tokens(
+            source.get("EBF_LLM_MAX_TOKENS"),
+            default=AnthropicClient.DEFAULT_MAX_TOKENS,
+        )
+        return AnthropicClient(
+            api_key=source.get("ANTHROPIC_API_KEY", ""),
+            model=source.get("EBF_LLM_MODEL", ""),
+            anthropic_version=source.get(
+                "EBF_ANTHROPIC_VERSION",
+                AnthropicClient.DEFAULT_VERSION,
+            ),
+            base_url=source.get("EBF_LLM_BASE_URL", AnthropicClient.DEFAULT_BASE_URL),
+            max_tokens=max_tokens,
+        )
     raise DisabledLLMClientError(
-        f"LLM provider {provider!r} is not available in this build. "
-        "Unset EBF_LLM_PROVIDER or set it to 'fake' to use the "
-        "deterministic fake client. The real provider adapter ships in "
-        "a follow-on PR after the outputer orchestration is stable."
+        f"LLM provider {provider!r} is not supported. "
+        "Unset EBF_LLM_PROVIDER, set it to 'fake', or set it to 'anthropic'."
     )
+
+
+def _require_config(value: Any, env_name: str) -> str:
+    if not isinstance(value, str) or not value.strip():
+        raise DisabledLLMClientError(f"{env_name} is required for Anthropic provider")
+    return value.strip()
+
+
+def _require_base_url(value: Any) -> str:
+    base_url = _require_config(value, "EBF_LLM_BASE_URL").rstrip("/")
+    if not (base_url.startswith("https://") or base_url.startswith("http://")):
+        raise DisabledLLMClientError(
+            "EBF_LLM_BASE_URL must start with http:// or https://"
+        )
+    return base_url
+
+
+def _parse_max_tokens(value: str | None, *, default: int) -> int:
+    if value is None or not value.strip():
+        return default
+    try:
+        return _require_positive_int(int(value), "EBF_LLM_MAX_TOKENS")
+    except ValueError as exc:
+        raise DisabledLLMClientError(
+            "EBF_LLM_MAX_TOKENS must be a positive integer"
+        ) from exc
+
+
+def _require_positive_int(value: Any, env_name: str) -> int:
+    if not isinstance(value, int) or isinstance(value, bool) or value < 1:
+        raise DisabledLLMClientError(f"{env_name} must be a positive integer")
+    return value
+
+
+def _anthropic_error_message(response: Any) -> str:
+    status = getattr(response, "status_code", "unknown")
+    request_id = ""
+    headers = getattr(response, "headers", {}) or {}
+    if isinstance(headers, Mapping) and headers.get("request-id"):
+        request_id = f" request_id={headers['request-id']}"
+    try:
+        data = response.json()
+    except ValueError:
+        return f"Anthropic provider returned HTTP {status}.{request_id}"
+    error = data.get("error") if isinstance(data, dict) else None
+    if isinstance(error, dict):
+        err_type = error.get("type")
+        message = error.get("message")
+        detail = ": ".join(
+            str(part)
+            for part in (err_type, message)
+            if isinstance(part, str) and part
+        )
+        if detail:
+            return f"Anthropic provider returned HTTP {status}: {detail}.{request_id}"
+    return f"Anthropic provider returned HTTP {status}.{request_id}"
+
+
+def _extract_anthropic_text(data: Any) -> str:
+    if not isinstance(data, dict):
+        raise LLMProviderUnavailable("Anthropic provider response must be a JSON object")
+    content = data.get("content")
+    if not isinstance(content, list):
+        raise LLMProviderUnavailable(
+            "Anthropic provider response missing content list"
+        )
+    texts: list[str] = []
+    for item in content:
+        if not isinstance(item, dict):
+            continue
+        if item.get("type") != "text":
+            continue
+        text = item.get("text")
+        if isinstance(text, str):
+            texts.append(text)
+    if not texts:
+        raise LLMProviderUnavailable(
+            "Anthropic provider response contained no text blocks"
+        )
+    return "".join(texts)

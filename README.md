@@ -124,6 +124,22 @@ When enabled, `/advisory/run` and `/advisory/nyahlothep` append full local
 advisory snapshots to JSONL. `/advisory/ledger/{entry_id}/replay` verifies the
 hash chain and reruns deterministic selection from the stored candidates.
 
+Optional live LLM provider for Azatoth/Nyahlothep advisory prose/candidate
+generation:
+
+```bash
+EBF_LLM_PROVIDER=anthropic \
+ANTHROPIC_API_KEY=... \
+EBF_LLM_MODEL=claude-sonnet-4-5 \
+  python -m uvicorn effective_boolean_filter.api:app \
+    --app-dir projects/effective_boolean_filter/src \
+    --host 127.0.0.1 \
+    --port 8000
+```
+
+The provider is advisory only. Its JSON is still validated before use, and the
+deterministic filter remains the only verdict source.
+
 Run the Xi–Jensen dashboard if the corresponding generated scripts and dependencies are present:
 
 ```bash

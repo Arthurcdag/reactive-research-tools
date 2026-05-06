@@ -21,11 +21,12 @@ works in simulation       -> untracked_shift if conclusion is "works in producti
 
 ## Architecture
 
-LLM is **not** in the deterministic path. The current MVP is rule-based.
+LLM is **not** in the deterministic path. The core MVP is rule-based.
 The advisory wrapper V0 is contract-first and deterministic: Azatoth makes
 candidate statements, the filter evaluates each one, and Nyahlothep selects
-the strongest candidate from filter reports only. A live LLM provider can be
-added later behind the same structured contract.
+the strongest candidate from filter reports only. A live Anthropic provider
+can be enabled for the inputer/outputer wrapper behind the same structured
+contract; provider output never becomes a verdict directly.
 
 ```text
 raw argument
@@ -143,6 +144,30 @@ previous hash, entry hash, request payload, and advisory response without
 ledger metadata. Replay verifies the hash chain, rebuilds candidates from the
 stored snapshot, re-runs the deterministic filter/selection path, and reports
 any mismatches. It does not call a live provider.
+
+### Live advisory provider
+
+The default provider is still the deterministic fake client. Enable the
+Anthropic adapter explicitly:
+
+```bash
+EBF_LLM_PROVIDER=anthropic \
+ANTHROPIC_API_KEY=... \
+EBF_LLM_MODEL=claude-sonnet-4-5 \
+  uvicorn effective_boolean_filter.api:app --host 127.0.0.1 --port 8000
+```
+
+Optional provider settings:
+
+| Variable | Default | Purpose |
+|----------|---------|---------|
+| `EBF_ANTHROPIC_VERSION` | `2023-06-01` | Anthropic API version header |
+| `EBF_LLM_BASE_URL` | `https://api.anthropic.com` | Direct API base URL |
+| `EBF_LLM_MAX_TOKENS` | `4096` | Non-streaming response token cap |
+
+Provider failures surface visibly as API errors. Provider text is parsed as
+JSON and then validated by the existing inputer/outputer schemas before it can
+enter the advisory wrapper.
 
 ## Output concepts
 
