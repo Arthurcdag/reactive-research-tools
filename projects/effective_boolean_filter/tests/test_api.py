@@ -170,6 +170,29 @@ def test_dashboard_has_azatoth_source_control():
         assert fragment in body, f"missing inputer fragment {fragment!r}"
 
 
+def test_dashboard_has_advisory_ledger_replay_controls():
+    body = _client().get("/").text
+    for fragment in (
+        'id="ledger-section"',
+        'id="ledger-entry"',
+        'id="ledger-sequence"',
+        'id="ledger-hash"',
+        'id="replay-ledger"',
+        'id="ledger-replay-status"',
+        "/advisory/ledger/",
+        "replayLedgerEntry",
+        "renderLedgerStatus",
+    ):
+        assert fragment in body, f"missing ledger fragment {fragment!r}"
+
+
+def test_dashboard_ledger_renders_via_textContent():
+    body = _client().get("/").text
+    assert "advisory.ledgerEntry.textContent" in body
+    assert "advisory.ledgerStatus.textContent" in body
+    assert ".innerHTML" not in body
+
+
 def test_dashboard_inputer_renders_via_textContent():
     """Inputer panel JS must use textContent and never innerHTML."""
     body = _client().get("/").text

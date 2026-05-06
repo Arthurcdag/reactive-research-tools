@@ -9,6 +9,9 @@ Endpoints:
   POST /advisory/nyahlothep
   POST /advisory/nyahlothep/output
   POST /advisory/run
+  GET  /advisory/ledger
+  GET  /advisory/ledger/{entry_id}
+  POST /advisory/ledger/{entry_id}/replay
   GET  /
   GET  /reports/{id}
 
@@ -35,6 +38,15 @@ from .probes import generate_probes as gen_probes
 from .report import to_json_dict
 from .scoring import score_argument
 from .storage import ReportStore, get_store
+from .advisory_ledger import (
+    AdvisoryLedger,
+    LedgerCorruptionError,
+    LedgerDisabledError,
+    LedgerEntryNotFound,
+    LedgerError,
+    LedgerValidationError,
+    get_advisory_ledger,
+)
 from .advisory import (
     AdvisoryCandidate,
     advisory_candidate_to_dict,
@@ -139,6 +151,7 @@ if _HAS_PYDANTIC:
 def create_app(
     store: ReportStore | None = None,
     *,
+    advisory_ledger: AdvisoryLedger | None = None,
     llm_client: LLMClient | None = None,
     outputer_cache: LLMResponseCache | None = None,
 ) -> Any:
@@ -175,6 +188,10 @@ def create_app(
 
     reports: ReportStore = store if store is not None else get_store()
     app.state.report_store = reports
+    ledger: AdvisoryLedger = (
+        advisory_ledger if advisory_ledger is not None else get_advisory_ledger()
+    )
+    app.state.advisory_ledger = ledger
 
     @app.middleware("http")
     async def add_security_headers(request: Any, call_next: Any) -> Any:
@@ -311,7 +328,11 @@ def create_app(
             raise HTTPException(status_code=500, detail=str(exc))
         out = advisory_run_to_dict(run)
         reports.put(run.selected_report.id, out["selected_report"])
-        return out
+        return _attach_advisory_ledger(
+            endpoint="/advisory/nyahlothep",
+            request_body=body,
+            response_body=out,
+        )
 
     @app.post("/advisory/run")
     def advisory_run(body: AdvisoryRunBody) -> dict[str, Any]:
@@ -328,7 +349,11 @@ def create_app(
             out = advisory_run_to_dict(run)
             out["azatoth_source"] = "deterministic"
             reports.put(run.selected_report.id, out["selected_report"])
-            return out
+            return _attach_advisory_ledger(
+                endpoint="/advisory/run",
+                request_body=body,
+                response_body=out,
+            )
 
         # body.source == "inputer"
         try:
@@ -371,7 +396,46 @@ def create_app(
             "deduped_count": inputer_result.deduped_count,
         }
         reports.put(run.selected_report.id, out["selected_report"])
-        return out
+        return _attach_advisory_ledger(
+            endpoint="/advisory/run",
+            request_body=body,
+            response_body=out,
+        )
+
+    @app.get("/advisory/ledger")
+    def advisory_ledger_entries() -> dict[str, Any]:
+        try:
+            return {"enabled": True, "entries": ledger.list_summaries()}
+        except LedgerDisabledError as exc:
+            raise HTTPException(status_code=503, detail=str(exc))
+        except LedgerCorruptionError as exc:
+            raise HTTPException(status_code=409, detail=str(exc))
+
+    @app.get("/advisory/ledger/{entry_id}")
+    def advisory_ledger_entry(entry_id: str) -> dict[str, Any]:
+        try:
+            return ledger.get(entry_id)
+        except LedgerDisabledError as exc:
+            raise HTTPException(status_code=503, detail=str(exc))
+        except LedgerValidationError as exc:
+            raise HTTPException(status_code=400, detail=str(exc))
+        except LedgerEntryNotFound as exc:
+            raise HTTPException(status_code=404, detail=str(exc))
+        except LedgerCorruptionError as exc:
+            raise HTTPException(status_code=409, detail=str(exc))
+
+    @app.post("/advisory/ledger/{entry_id}/replay")
+    def advisory_ledger_replay(entry_id: str) -> dict[str, Any]:
+        try:
+            return ledger.replay(entry_id)
+        except LedgerDisabledError as exc:
+            raise HTTPException(status_code=503, detail=str(exc))
+        except LedgerValidationError as exc:
+            raise HTTPException(status_code=400, detail=str(exc))
+        except LedgerEntryNotFound as exc:
+            raise HTTPException(status_code=404, detail=str(exc))
+        except LedgerCorruptionError as exc:
+            raise HTTPException(status_code=409, detail=str(exc))
 
     @app.post("/advisory/nyahlothep/output")
     def advisory_nyahlothep_output(body: NyahlothepOutputBody) -> dict[str, Any]:
@@ -409,7 +473,40 @@ def create_app(
     def health() -> dict[str, str]:
         return {"status": "ok"}
 
+    def _attach_advisory_ledger(
+        *,
+        endpoint: str,
+        request_body: Any,
+        response_body: dict[str, Any],
+    ) -> dict[str, Any]:
+        snapshot = dict(response_body)
+        snapshot.pop("ledger", None)
+        try:
+            response_body["ledger"] = ledger.append(
+                run_id=str(snapshot.get("id", "")),
+                endpoint=endpoint,
+                payload={
+                    "request": _model_to_plain_dict(request_body),
+                    "response": snapshot,
+                },
+            )
+        except LedgerCorruptionError as exc:
+            raise HTTPException(status_code=409, detail=str(exc))
+        except LedgerError as exc:
+            raise HTTPException(status_code=500, detail=str(exc))
+        return response_body
+
     return app
+
+
+def _model_to_plain_dict(value: Any) -> dict[str, Any]:
+    if hasattr(value, "model_dump"):
+        return value.model_dump()  # type: ignore[no-any-return,attr-defined]
+    if hasattr(value, "dict"):
+        return value.dict()  # type: ignore[no-any-return,attr-defined]
+    if isinstance(value, dict):
+        return dict(value)
+    raise TypeError(f"cannot serialize request body: {type(value)!r}")
 
 
 try:  # pragma: no cover

@@ -110,6 +110,20 @@ The dashboard is served with a restrictive content security policy and
 localhost binding by default. Keep that binding unless you intentionally
 want to expose the API on a network.
 
+Optional advisory ledger:
+
+```bash
+EBF_ADVISORY_LEDGER=file:./local/advisory-ledger.jsonl \
+  python -m uvicorn effective_boolean_filter.api:app \
+    --app-dir projects/effective_boolean_filter/src \
+    --host 127.0.0.1 \
+    --port 8000
+```
+
+When enabled, `/advisory/run` and `/advisory/nyahlothep` append full local
+advisory snapshots to JSONL. `/advisory/ledger/{entry_id}/replay` verifies the
+hash chain and reruns deterministic selection from the stored candidates.
+
 Run the Xi–Jensen dashboard if the corresponding generated scripts and dependencies are present:
 
 ```bash

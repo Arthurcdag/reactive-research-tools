@@ -232,6 +232,20 @@ rate limiting.
      selection; it does not influence the verdict.
    - This is infrastructure for Azatoth inputer V1, not live provider work.
 
+10. ~~Add advisory ledger + full replay.~~ Implemented in this change.
+   - `advisory_ledger.py` provides `NullAdvisoryLedger` by default and
+     `FileAdvisoryLedger` behind `EBF_ADVISORY_LEDGER=file:/path/to/log.jsonl`.
+   - `/advisory/run` and `/advisory/nyahlothep` append full local snapshots
+     only after selected report storage succeeds; responses gain additive
+     `ledger` metadata.
+   - Adds `GET /advisory/ledger`, `GET /advisory/ledger/{entry_id}`, and
+     `POST /advisory/ledger/{entry_id}/replay`.
+   - Replay verifies the append-only hash chain, rebuilds candidates from the
+     stored snapshot, re-runs deterministic evaluation/selection, and reports
+     mismatches without calling a live provider.
+   - Dashboard adds a compact ledger/replay strip using `textContent` only;
+     CSP and no-inline-handler constraints remain unchanged.
+
 ## Suggested Work Order
 
 1. Create a new branch from `main`.

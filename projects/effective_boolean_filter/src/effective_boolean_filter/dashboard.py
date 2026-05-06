@@ -333,6 +333,47 @@ DASHBOARD_HTML = """<!doctype html>
       overflow-wrap: anywhere;
     }
 
+    .ledger-strip {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+      gap: 8px;
+      align-items: end;
+    }
+
+    .ledger-strip > div {
+      min-height: 54px;
+      border: 1px solid var(--line);
+      border-radius: 6px;
+      padding: 6px 8px;
+      background: #ffffff;
+    }
+
+    .ledger-strip span {
+      display: block;
+      color: var(--muted);
+      font-size: 11px;
+      font-weight: 700;
+      text-transform: uppercase;
+    }
+
+    .ledger-strip strong {
+      display: block;
+      margin-top: 2px;
+      font-family: var(--mono);
+      font-size: 12px;
+      overflow-wrap: anywhere;
+    }
+
+    .ledger-status {
+      grid-column: 1 / -1;
+      color: var(--muted);
+      font-size: 12px;
+      overflow-wrap: anywhere;
+    }
+
+    .ledger-status.ok { color: var(--teal); }
+    .ledger-status.err { color: var(--red); }
+
     .outputer-output {
       display: grid;
       gap: 10px;
@@ -639,6 +680,20 @@ DASHBOARD_HTML = """<!doctype html>
             <h3>Trace + gates</h3>
             <ul class="list" id="advisory-trace-gates"><li class="empty">No trace yet.</li></ul>
           </section>
+          <section class="section" id="ledger-section" aria-live="polite">
+            <h3>Ledger replay</h3>
+            <div class="ledger-strip">
+              <div><span>Entry</span><strong id="ledger-entry">disabled</strong></div>
+              <div><span>Sequence</span><strong id="ledger-sequence">-</strong></div>
+              <div><span>Hash</span><strong id="ledger-hash">-</strong></div>
+              <button class="secondary" type="button" id="replay-ledger" disabled>
+                Replay verify
+              </button>
+              <span class="ledger-status" id="ledger-replay-status" role="status">
+                Ledger off.
+              </span>
+            </div>
+          </section>
           <section class="section">
             <h3>Selected candidate</h3>
             <div id="selected-candidate" class="empty">No selection yet.</div>
@@ -733,6 +788,11 @@ DASHBOARD_HTML = """<!doctype html>
       status: document.querySelector("#advisory-status"),
       ranking: document.querySelector("#advisory-ranking"),
       traceGates: document.querySelector("#advisory-trace-gates"),
+      ledgerEntry: document.querySelector("#ledger-entry"),
+      ledgerSequence: document.querySelector("#ledger-sequence"),
+      ledgerHash: document.querySelector("#ledger-hash"),
+      ledgerReplay: document.querySelector("#replay-ledger"),
+      ledgerStatus: document.querySelector("#ledger-replay-status"),
       selected: document.querySelector("#selected-candidate")
     };
     const outputer = {
@@ -981,6 +1041,7 @@ DASHBOARD_HTML = """<!doctype html>
         "No candidates ranked."
       );
       renderAdvisoryTraceGates(run);
+      renderLedgerStatus(run);
       renderSelectedCandidate(candidate, selection);
       renderInputerStatus(run);
       advisory.load.disabled = false;
@@ -1014,9 +1075,75 @@ DASHBOARD_HTML = """<!doctype html>
       );
     }
 
+    function setLedgerStatus(message, state) {
+      advisory.ledgerStatus.textContent = message;
+      advisory.ledgerStatus.className = "ledger-status" + (state ? " " + state : "");
+    }
+
+    function resetLedgerStatus(message) {
+      advisory.ledgerEntry.textContent = "disabled";
+      advisory.ledgerSequence.textContent = "-";
+      advisory.ledgerHash.textContent = "-";
+      advisory.ledgerReplay.disabled = true;
+      setLedgerStatus(message || "Ledger off.", "");
+    }
+
+    function renderLedgerStatus(run) {
+      const ledger = run && run.ledger;
+      if (!ledger || !ledger.enabled) {
+        resetLedgerStatus("Ledger off.");
+        return;
+      }
+      advisory.ledgerEntry.textContent = String(ledger.entry_id || "?");
+      advisory.ledgerSequence.textContent = String(ledger.sequence || "?");
+      advisory.ledgerHash.textContent = String(ledger.entry_hash || "?");
+      advisory.ledgerReplay.disabled = false;
+      setLedgerStatus("Ready to replay verify.", "ok");
+    }
+
+    async function replayLedgerEntry() {
+      const ledger = latestAdvisoryRun && latestAdvisoryRun.ledger;
+      if (!ledger || !ledger.enabled || !ledger.entry_id) {
+        resetLedgerStatus("Ledger off.");
+        return;
+      }
+      advisory.ledgerReplay.disabled = true;
+      setLedgerStatus("Replaying...", "");
+      try {
+        const response = await fetch(
+          "/advisory/ledger/" + encodeURIComponent(ledger.entry_id) + "/replay",
+          { method: "POST" }
+        );
+        const payload = await response.json();
+        if (!response.ok) {
+          throw new Error(payload.detail || response.statusText);
+        }
+        if (payload.verified) {
+          setLedgerStatus("Replay verified.", "ok");
+        } else {
+          const details = Array.isArray(payload.mismatches)
+            ? payload.mismatches.join("; ")
+            : "unknown mismatch";
+          setLedgerStatus("Replay mismatch: " + details, "err");
+        }
+      } catch (error) {
+        setLedgerStatus(
+          "Replay failed: " + (error && error.message ? error.message : "unknown error"),
+          "err"
+        );
+      } finally {
+        advisory.ledgerReplay.disabled = !(
+          latestAdvisoryRun &&
+          latestAdvisoryRun.ledger &&
+          latestAdvisoryRun.ledger.enabled
+        );
+      }
+    }
+
     async function runWrapper() {
       advisory.run.disabled = true;
       advisory.load.disabled = true;
+      resetLedgerStatus("Waiting for wrapper run.");
       setAdvisoryStatus("running");
       try {
         const count = Number(advisory.count.value || 8);
@@ -1041,6 +1168,7 @@ DASHBOARD_HTML = """<!doctype html>
         advisory.selected.className = "empty";
         advisory.selected.textContent = String(error);
         advisory.inputerSection.hidden = true;
+        resetLedgerStatus("Ledger unavailable.");
         setAdvisoryStatus("failed");
       } finally {
         advisory.run.disabled = false;
@@ -1255,6 +1383,7 @@ DASHBOARD_HTML = """<!doctype html>
     copyBtn.addEventListener("click", copyJson);
     advisory.run.addEventListener("click", runWrapper);
     advisory.load.addEventListener("click", loadSelectedCandidate);
+    advisory.ledgerReplay.addEventListener("click", replayLedgerEntry);
     outputer.generate.addEventListener("click", generateOutputerNarration);
 
     form.addEventListener("submit", evaluate);

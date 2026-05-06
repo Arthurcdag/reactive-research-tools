@@ -69,6 +69,9 @@ Endpoints (per spec section 11):
 | POST   | /advisory/azatoth     | Generate candidate statements     |
 | POST   | /advisory/nyahlothep  | Select from caller candidates     |
 | POST   | /advisory/run         | Generate, evaluate, select        |
+| GET    | /advisory/ledger      | List advisory ledger entries      |
+| GET    | /advisory/ledger/{id} | Fetch an advisory ledger entry    |
+| POST   | /advisory/ledger/{id}/replay | Verify and replay an entry |
 | GET    | /reports/{id}         | Fetch a stored report             |
 | GET    | /health               | Liveness                          |
 
@@ -123,6 +126,23 @@ candidate evaluations are returned as ranking summaries.
 
 Trace/gate metadata is provenance only. It proves that the selected report came
 from evaluated filter output; it does not change the deterministic verdict.
+
+### Advisory ledger
+
+The advisory ledger is off by default. Enable it only for local provenance
+work:
+
+```bash
+EBF_ADVISORY_LEDGER=file:/path/to/advisory-ledger.jsonl \
+  uvicorn effective_boolean_filter.api:app --host 127.0.0.1 --port 8000
+```
+
+When enabled, `/advisory/run` and `/advisory/nyahlothep` append full JSONL
+snapshots after the selected report is stored. Each entry includes a sequence,
+previous hash, entry hash, request payload, and advisory response without
+ledger metadata. Replay verifies the hash chain, rebuilds candidates from the
+stored snapshot, re-runs the deterministic filter/selection path, and reports
+any mismatches. It does not call a live provider.
 
 ## Output concepts
 
