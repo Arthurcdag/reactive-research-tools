@@ -213,15 +213,22 @@ rate limiting.
      dashboard regressions in `tests/test_api.py` lock in the new
      fragments and the textContent invariant.
 
-9. Real provider adapter behind ``EBF_LLM_PROVIDER``.
-   - Slot is reserved; selecting any non-fake value raises
-     `DisabledLLMClientError` with a visible message.
-   - Outputer (V1) and inputer (V1) both go through the same
-     `LLMClient` interface, so a single adapter PR enables live LLM
-     calls for both halves.
-   - The implementer should consult the official Anthropic SDK docs
-     at the time of the PR for prompt-caching usage and structured
-     output handling.
+9. ~~Build Anthropic provider adapter V1.~~ Implemented in this change.
+   - `llm_client.py` now supports `EBF_LLM_PROVIDER=anthropic` using the
+     existing `httpx` dependency and no provider SDK.
+   - Required config: `ANTHROPIC_API_KEY` and `EBF_LLM_MODEL`. Optional
+     config: `EBF_ANTHROPIC_VERSION` (default `2023-06-01`),
+     `EBF_LLM_BASE_URL` (default `https://api.anthropic.com`), and
+     `EBF_LLM_MAX_TOKENS` (default `4096`).
+   - The adapter sends non-streaming Messages API requests with
+     `temperature: 0`, system prompt, and one user JSON-data message.
+   - It joins returned text blocks into `LLMResponse.raw_text`; inputer and
+     outputer JSON parsing/schema validation remain outside the provider.
+   - Missing config raises `DisabledLLMClientError`, HTTP/network/bad
+     response failures raise `LLMProviderUnavailable`, and timeouts raise
+     `LLMTimeoutError`.
+   - Tests use injected HTTP clients only; no real network calls or keys are
+     required.
 
 9. ~~Add advisory trace + gate lite.~~ Implemented in this change.
    - `trace_gate.py` provides deterministic `PipelineTrace` stages and

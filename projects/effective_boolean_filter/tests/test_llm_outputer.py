@@ -8,8 +8,8 @@ Covers the failure policy from the developer brief:
 * cache hit avoids second client call
 * outputer never mutates the input selected_report or recipe
 * unknown style / malformed inputs -> visible error
-* DisabledLLMClientError surfaces from get_client when env asks for a
-  non-fake provider in this build
+* DisabledLLMClientError surfaces from get_client when env asks for an
+  unsupported or misconfigured provider
 """
 from __future__ import annotations
 
