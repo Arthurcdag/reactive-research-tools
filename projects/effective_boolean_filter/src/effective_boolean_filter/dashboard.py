@@ -656,6 +656,20 @@ DASHBOARD_HTML = """<!doctype html>
           <p class="advisory-source-help muted" id="advisory-source-help">
             Inputer uses the deterministic fake LLM client by default; no real provider is called in this build.
           </p>
+          <section class="section" id="provider-status-section" aria-live="polite">
+            <h3>Provider status</h3>
+            <div class="ledger-strip">
+              <div><span>Provider</span><strong id="provider-name">checking</strong></div>
+              <div><span>Model</span><strong id="provider-model">-</strong></div>
+              <div><span>Configured</span><strong id="provider-configured">-</strong></div>
+              <button class="secondary" type="button" id="check-provider">
+                Check provider
+              </button>
+              <span class="ledger-status" id="provider-status-message" role="status">
+                Checking provider config.
+              </span>
+            </div>
+          </section>
           <div class="actions">
             <button class="primary" type="button" id="run-wrapper">Run wrapper</button>
             <button class="secondary" type="button" id="load-selected" disabled>Load selected</button>
@@ -786,6 +800,13 @@ DASHBOARD_HTML = """<!doctype html>
       run: document.querySelector("#run-wrapper"),
       load: document.querySelector("#load-selected"),
       status: document.querySelector("#advisory-status"),
+      providerFields: {
+        name: document.querySelector("#provider-name"),
+        model: document.querySelector("#provider-model"),
+        configured: document.querySelector("#provider-configured"),
+        check: document.querySelector("#check-provider"),
+        message: document.querySelector("#provider-status-message")
+      },
       ranking: document.querySelector("#advisory-ranking"),
       traceGates: document.querySelector("#advisory-trace-gates"),
       ledgerEntry: document.querySelector("#ledger-entry"),
@@ -966,6 +987,49 @@ DASHBOARD_HTML = """<!doctype html>
 
     function setAdvisoryStatus(message) {
       advisory.status.textContent = message;
+    }
+
+    function setProviderStatusMessage(message, state) {
+      advisory.providerFields.message.textContent = message;
+      advisory.providerFields.message.className = "ledger-status" + (state ? " " + state : "");
+    }
+
+    function renderProviderStatus(payload) {
+      advisory.providerFields.name.textContent = String(payload.provider || "?");
+      advisory.providerFields.model.textContent = String(payload.model || "-");
+      advisory.providerFields.configured.textContent = payload.configured ? "yes" : "no";
+      if (payload.configured) {
+        setProviderStatusMessage(
+          payload.live ? "Live provider configured." : "Deterministic fake provider.",
+          "ok"
+        );
+      } else {
+        const errors = Array.isArray(payload.errors) ? payload.errors.join("; ") : "not configured";
+        setProviderStatusMessage(errors, "err");
+      }
+    }
+
+    async function checkProviderStatus() {
+      advisory.providerFields.check.disabled = true;
+      setProviderStatusMessage("Checking provider config.", "");
+      try {
+        const response = await fetch("/advisory/provider/status");
+        const payload = await response.json();
+        if (!response.ok) {
+          throw new Error(payload.detail || response.statusText);
+        }
+        renderProviderStatus(payload);
+      } catch (error) {
+        advisory.providerFields.name.textContent = "?";
+        advisory.providerFields.model.textContent = "-";
+        advisory.providerFields.configured.textContent = "no";
+        setProviderStatusMessage(
+          "Provider status failed: " + (error && error.message ? error.message : "unknown error"),
+          "err"
+        );
+      } finally {
+        advisory.providerFields.check.disabled = false;
+      }
     }
 
     function renderSelectedCandidate(candidate, selection) {
@@ -1381,6 +1445,7 @@ DASHBOARD_HTML = """<!doctype html>
       btn.addEventListener("click", () => applyPreset(btn.getAttribute("data-preset")));
     });
     copyBtn.addEventListener("click", copyJson);
+    advisory.providerFields.check.addEventListener("click", checkProviderStatus);
     advisory.run.addEventListener("click", runWrapper);
     advisory.load.addEventListener("click", loadSelectedCandidate);
     advisory.ledgerReplay.addEventListener("click", replayLedgerEntry);
@@ -1391,6 +1456,7 @@ DASHBOARD_HTML = """<!doctype html>
       .then(r => r.json())
       .then(data => { health.textContent = data.status; })
       .catch(() => { health.textContent = "offline"; });
+    checkProviderStatus();
   </script>
 </body>
 </html>

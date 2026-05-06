@@ -149,3 +149,16 @@ def test_api_anthropic_invalid_json_still_returns_422():
         },
     )
     assert response.status_code == 422
+
+
+def test_api_provider_status_default_fake(monkeypatch):
+    monkeypatch.delenv("EBF_LLM_PROVIDER", raising=False)
+    response = _test_client(llm_client=None).get("/advisory/provider/status")
+    assert response.status_code == 200
+    assert response.json() == {
+        "provider": "fake-deterministic",
+        "configured": True,
+        "live": False,
+        "model": "fake-deterministic-1",
+        "errors": [],
+    }

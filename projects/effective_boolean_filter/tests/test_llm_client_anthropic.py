@@ -20,6 +20,7 @@ from src.effective_boolean_filter.llm_client import (
     LLMRequest,
     LLMTimeoutError,
     get_client,
+    provider_status,
 )
 from src.effective_boolean_filter.llm_outputer import generate_outputer
 
@@ -168,6 +169,68 @@ def test_get_client_rejects_malformed_anthropic_config(env, message):
 def test_get_client_unsupported_provider_still_fails_visibly():
     with pytest.raises(DisabledLLMClientError, match="not supported"):
         get_client(env={"EBF_LLM_PROVIDER": "openai"})
+
+
+def test_provider_status_default_fake():
+    assert provider_status(env={}) == {
+        "provider": "fake-deterministic",
+        "configured": True,
+        "live": False,
+        "model": "fake-deterministic-1",
+        "errors": [],
+    }
+
+
+def test_provider_status_valid_anthropic_config_hides_key_value():
+    status = provider_status(
+        env={
+            "EBF_LLM_PROVIDER": "anthropic",
+            "ANTHROPIC_API_KEY": "sk-secret",
+            "EBF_LLM_MODEL": "claude-test",
+            "EBF_LLM_BASE_URL": "https://example.test/",
+            "EBF_LLM_MAX_TOKENS": "123",
+        }
+    )
+    assert status == {
+        "provider": "anthropic",
+        "configured": True,
+        "live": True,
+        "model": "claude-test",
+        "anthropic_version": "2023-06-01",
+        "base_url": "https://example.test",
+        "max_tokens": 123,
+        "credential_present": True,
+        "errors": [],
+    }
+    assert "sk-secret" not in json.dumps(status)
+
+
+def test_provider_status_reports_anthropic_config_errors_without_raising():
+    status = provider_status(
+        env={
+            "EBF_LLM_PROVIDER": "anthropic",
+            "EBF_LLM_BASE_URL": "example.test",
+            "EBF_LLM_MAX_TOKENS": "nope",
+        }
+    )
+    assert status["provider"] == "anthropic"
+    assert status["configured"] is False
+    assert status["credential_present"] is False
+    assert "ANTHROPIC_API_KEY is required" in status["errors"]
+    assert "EBF_LLM_MODEL is required" in status["errors"]
+    assert any("EBF_LLM_BASE_URL" in error for error in status["errors"])
+    assert any("EBF_LLM_MAX_TOKENS" in error for error in status["errors"])
+
+
+def test_provider_status_reports_unsupported_provider():
+    status = provider_status(env={"EBF_LLM_PROVIDER": "openai"})
+    assert status == {
+        "provider": "openai",
+        "configured": False,
+        "live": False,
+        "model": None,
+        "errors": ["Unsupported provider. Use unset/fake or anthropic."],
+    }
 
 
 def test_anthropic_client_posts_messages_shape():

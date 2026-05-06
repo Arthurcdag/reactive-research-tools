@@ -70,6 +70,7 @@ Endpoints (per spec section 11):
 | POST   | /advisory/azatoth     | Generate candidate statements     |
 | POST   | /advisory/nyahlothep  | Select from caller candidates     |
 | POST   | /advisory/run         | Generate, evaluate, select        |
+| GET    | /advisory/provider/status | Check advisory provider config |
 | GET    | /advisory/ledger      | List advisory ledger entries      |
 | GET    | /advisory/ledger/{id} | Fetch an advisory ledger entry    |
 | POST   | /advisory/ledger/{id}/replay | Verify and replay an entry |
@@ -168,6 +169,10 @@ Optional provider settings:
 Provider failures surface visibly as API errors. Provider text is parsed as
 JSON and then validated by the existing inputer/outputer schemas before it can
 enter the advisory wrapper.
+
+`GET /advisory/provider/status` performs a no-network config check for the
+dashboard. It reports provider/model/configured status and whether a credential
+is present, but never returns the credential value.
 
 ## Output concepts
 

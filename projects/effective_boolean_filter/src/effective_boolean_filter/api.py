@@ -9,6 +9,7 @@ Endpoints:
   POST /advisory/nyahlothep
   POST /advisory/nyahlothep/output
   POST /advisory/run
+  GET  /advisory/provider/status
   GET  /advisory/ledger
   GET  /advisory/ledger/{entry_id}
   POST /advisory/ledger/{entry_id}/replay
@@ -60,6 +61,7 @@ from .llm_client import (
     LLMClient,
     LLMProviderUnavailable,
     LLMTimeoutError,
+    provider_status,
 )
 from .llm_outputer import (
     OutputerValidationError,
@@ -458,6 +460,10 @@ def create_app(
             # invalid JSON / schema mismatch / source_report_id mismatch
             raise HTTPException(status_code=422, detail=str(exc))
         return outputer_result_to_dict(result)
+
+    @app.get("/advisory/provider/status")
+    def advisory_provider_status() -> dict[str, Any]:
+        return provider_status()
 
     @app.get("/reports/{report_id}")
     def get_report(report_id: str) -> dict[str, Any]:
