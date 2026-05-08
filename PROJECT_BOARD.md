@@ -58,3 +58,6 @@
 - [ ] Batch planner
 - [ ] Residual-gated certification
 - [ ] Publication-grade audit report
+
+### CI coverage
+- [x] Xi-Jensen CI smoke coverage (unit, CLI --help, sample-output regression)

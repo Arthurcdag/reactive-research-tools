@@ -262,6 +262,33 @@ rate limiting.
    - Tests cover fake default, valid Anthropic config, malformed Anthropic
      config, unsupported providers, the API endpoint, and dashboard hooks.
 
+12. ~~Bring `xi_jensen_pipeline/` under CI smoke coverage.~~ Implemented
+    in this change (branch `codex/xi-jensen-ci-smoke`).
+   - Adds `projects/xi_jensen_pipeline/tests/` with three files:
+     `test_xi_jensen_units.py` (pure-function unit tests for
+     `threshold_degree`, `c_nd`, and `auto_max_gamma_index`),
+     `test_xi_jensen_cli_smoke.py` (subprocess `--help` checks for
+     `xi_jensen_frontier_dashboard.py` and
+     `xi_jensen_certification_status.py`), and
+     `test_xi_jensen_sample_outputs.py` (header + locked-row regression
+     against the committed dashboard smoke CSVs).
+   - Adds a local `conftest.py` that prepends the scripts directory to
+     `sys.path` so the top-level inter-script imports (e.g.
+     `import xi_jensen_fast as F`) resolve under pytest. The injection
+     is scoped to this directory's conftest only.
+   - Extends `pyproject.toml` `testpaths` so `python -m pytest` (no
+     args) runs both the effective_boolean_filter and xi_jensen_pipeline
+     trees.
+   - Extends `.github/workflows/python-tests.yml` to invoke
+     `python -m pytest`, picking up both trees from `pyproject.toml`.
+   - Targeted commands remain available:
+     - `python -m pytest projects/effective_boolean_filter/tests/`
+     - `python -m pytest projects/xi_jensen_pipeline/tests/`
+   - CI intentionally avoids the expensive Xi-Jensen workloads
+     (certification campaigns, deepcheck batches, contour stress
+     harnesses, high-precision verification, publication-grade audits).
+     Those remain manual and out of CI scope.
+
 ## Suggested Work Order
 
 1. Create a new branch from `main`.
@@ -279,7 +306,9 @@ git switch -c codex/report-storage
 
 ## Acceptance Criteria For The Next PR
 
-- `python -m pytest projects/effective_boolean_filter/tests/` passes locally.
+- `python -m pytest` passes locally (covers both
+  `projects/effective_boolean_filter/tests/` and
+  `projects/xi_jensen_pipeline/tests/`).
 - GitHub Actions passes on the PR.
 - `MANIFEST.json` includes any new tracked files.
 - README or project docs mention any new user-facing command or endpoint.

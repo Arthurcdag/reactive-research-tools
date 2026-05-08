@@ -3,5 +3,6 @@ pythonpath = [
   "projects/effective_boolean_filter"
 ]
 testpaths = [
-  "projects/effective_boolean_filter/tests"
+  "projects/effective_boolean_filter/tests",
+  "projects/xi_jensen_pipeline/tests"
 ]

@@ -14,4 +14,4 @@ jobs:
           python-version: "3.11"
       - run: python -m pip install --upgrade pip
       - run: pip install -r requirements.txt
-      - run: pytest projects/effective_boolean_filter/tests
+      - run: python -m pytest
