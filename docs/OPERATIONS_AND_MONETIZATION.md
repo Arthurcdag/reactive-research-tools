@@ -92,13 +92,29 @@ Provision a key:
 python scripts/provision_customer_key.py \
   --customer-id customer-a \
   --plan starter \
-  --base-url https://your-domain
+  --base-url https://your-domain \
+  --registry-file operator_exports/customer_registry.json \
+  --payment-reference INV-2026-001 \
+  --contracting-entity brazil-entity
 ```
 
 The command prints an `EBF_API_KEYS` entry and a one-time dashboard bootstrap
 URL. Store the generated token in a password vault or hosting secret manager.
 Generated local files such as `secrets/` and `customer_keys*.env` are ignored by
 Git.
+
+Generate a no-secret reconciliation report for Conka8:
+
+```bash
+python scripts/customer_reconciliation.py \
+  --registry-file operator_exports/customer_registry.json \
+  --output operator_exports/reconciliation-2026-05.md \
+  --title "Conka8 Reconciliation 2026-05"
+```
+
+The reconciliation report includes customer IDs, plan names, payment
+references, entity labels, and token fingerprints. It intentionally excludes
+API tokens and customer report content.
 
 Customer offboarding:
 

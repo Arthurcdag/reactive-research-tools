@@ -23,6 +23,9 @@ local/
 secrets/
 customer_keys*.env
 customer_keys*.json
+customer_registry*.json
+reconciliation*.md
+operator_exports/
 *_results.csv
 *_summary.json
 *_report.md

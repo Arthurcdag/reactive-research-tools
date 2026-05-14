@@ -54,3 +54,29 @@ def test_render_env_does_not_drop_fingerprint():
     rendered = module.render_env(key)
     assert "EBF_API_KEYS_APPEND=customer-a:pro:" in rendered
     assert f"fingerprint={key.fingerprint}" in rendered
+
+
+def test_append_registry_writes_no_secret_record(tmp_path):
+    module = _module()
+    key = module.provision_key(customer_id="customer-a", plan="starter", token_bytes=24)
+    registry = tmp_path / "customer_registry.json"
+    record = module.append_registry(
+        registry,
+        key,
+        payment_reference="INV-001",
+        contracting_entity="brazil-entity",
+    )
+    text = registry.read_text(encoding="utf-8")
+    assert key.token not in text
+    assert record.key_fingerprint == key.fingerprint
+    assert "INV-001" in text
+    assert "brazil-entity" in text
+
+
+def test_append_registry_rejects_duplicate_fingerprint(tmp_path):
+    module = _module()
+    key = module.provision_key(customer_id="customer-a", plan="starter", token_bytes=24)
+    registry = tmp_path / "customer_registry.json"
+    module.append_registry(registry, key)
+    with pytest.raises(ValueError):
+        module.append_registry(registry, key)

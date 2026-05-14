@@ -49,6 +49,26 @@ Conka8 should not be authorized to:
 6. Monthly close reconciles processor, bank, invoices, `EBF_API_KEYS`, and
    customer report retention status.
 
+No-secret customer registry:
+
+```bash
+python scripts/provision_customer_key.py \
+  --customer-id customer-a \
+  --plan starter \
+  --base-url https://your-domain \
+  --registry-file operator_exports/customer_registry.json \
+  --payment-reference INV-2026-001 \
+  --contracting-entity brazil-entity
+```
+
+Conka8-safe reconciliation:
+
+```bash
+python scripts/customer_reconciliation.py \
+  --registry-file operator_exports/customer_registry.json \
+  --output operator_exports/reconciliation-2026-05.md
+```
+
 ## Brazil Checks
 
 - CNPJ/entity setup through the official business registration path if selling

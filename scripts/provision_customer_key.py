@@ -14,7 +14,9 @@ import re
 import secrets
 import sys
 from dataclasses import asdict, dataclass
+from datetime import datetime, timezone
 from pathlib import Path
+from typing import Any
 
 
 VALID_PLANS = {"demo", "starter", "pro", "enterprise"}
@@ -29,6 +31,17 @@ class ProvisionedKey:
     fingerprint: str
     env_entry: str
     dashboard_url: str | None
+
+
+@dataclass(frozen=True)
+class RegistryRecord:
+    customer_id: str
+    plan: str
+    key_fingerprint: str
+    status: str
+    created_at: str
+    payment_reference: str
+    contracting_entity: str
 
 
 def normalize_base_url(value: str | None) -> str | None:
@@ -99,6 +112,64 @@ def render_env(provisioned: ProvisionedKey) -> str:
     return "\n".join(lines) + "\n"
 
 
+def registry_record(
+    provisioned: ProvisionedKey,
+    *,
+    payment_reference: str = "",
+    contracting_entity: str = "",
+    created_at: str | None = None,
+) -> RegistryRecord:
+    return RegistryRecord(
+        customer_id=provisioned.customer_id,
+        plan=provisioned.plan,
+        key_fingerprint=provisioned.fingerprint,
+        status="active",
+        created_at=created_at or datetime.now(timezone.utc).replace(microsecond=0).isoformat(),
+        payment_reference=payment_reference.strip(),
+        contracting_entity=contracting_entity.strip(),
+    )
+
+
+def load_registry(path: Path) -> dict[str, Any]:
+    if not path.exists():
+        return {"schema": "rtt_customer_registry_v1", "customers": []}
+    with path.open(encoding="utf-8") as file:
+        data = json.load(file)
+    if data.get("schema") != "rtt_customer_registry_v1":
+        raise ValueError("unsupported customer registry schema")
+    if not isinstance(data.get("customers"), list):
+        raise ValueError("customer registry must contain a customers list")
+    return data
+
+
+def append_registry(
+    path: Path,
+    provisioned: ProvisionedKey,
+    *,
+    payment_reference: str = "",
+    contracting_entity: str = "",
+) -> RegistryRecord:
+    data = load_registry(path)
+    record = registry_record(
+        provisioned,
+        payment_reference=payment_reference,
+        contracting_entity=contracting_entity,
+    )
+    existing_fingerprints = {
+        str(item.get("key_fingerprint", ""))
+        for item in data["customers"]
+        if isinstance(item, dict)
+    }
+    if record.key_fingerprint in existing_fingerprints:
+        raise ValueError("customer registry already contains this key fingerprint")
+    data["customers"].append(asdict(record))
+    path.parent.mkdir(parents=True, exist_ok=True)
+    with path.open("w", encoding="utf-8") as file:
+        json.dump(data, file, indent=2)
+        file.write("\n")
+    return record
+
+
 def append_to_file(path: Path, provisioned: ProvisionedKey) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
     with path.open("a", encoding="utf-8") as file:
@@ -123,6 +194,21 @@ def parse_args(argv: list[str]) -> argparse.Namespace:
         type=Path,
         help="Optional local secret file to append the generated entry to",
     )
+    parser.add_argument(
+        "--registry-file",
+        type=Path,
+        help="Optional no-secret customer registry JSON file to update",
+    )
+    parser.add_argument(
+        "--payment-reference",
+        default="",
+        help="Invoice/payment reference stored in the no-secret registry",
+    )
+    parser.add_argument(
+        "--contracting-entity",
+        default="",
+        help="Contracting entity label stored in the no-secret registry",
+    )
     return parser.parse_args(argv)
 
 
@@ -141,6 +227,13 @@ def main(argv: list[str] | None = None) -> int:
 
     if args.append_file:
         append_to_file(args.append_file, provisioned)
+    if args.registry_file:
+        append_registry(
+            args.registry_file,
+            provisioned,
+            payment_reference=args.payment_reference,
+            contracting_entity=args.contracting_entity,
+        )
 
     if args.format == "json":
         print(json.dumps(asdict(provisioned), indent=2))
