@@ -123,6 +123,10 @@
     "projects/xi_jensen_pipeline/scripts/xi_jensen_threshold_frontier_live.py",
     "projects/xi_jensen_pipeline/scripts/xi_jensen_verify_queue.py",
     "projects/xi_jensen_pipeline/scripts/xi_jensen_verify_triage.py",
+    "projects/xi_jensen_pipeline/tests/conftest.py",
+    "projects/xi_jensen_pipeline/tests/test_xi_jensen_cli_smoke.py",
+    "projects/xi_jensen_pipeline/tests/test_xi_jensen_sample_outputs.py",
+    "projects/xi_jensen_pipeline/tests/test_xi_jensen_units.py",
     "pyproject.toml",
     "requirements.txt"
   ]

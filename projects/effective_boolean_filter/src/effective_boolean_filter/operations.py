@@ -28,6 +28,8 @@ DEFAULT_PLAN_LIMITS = {
     "pro": "600/minute",
     "enterprise": "1800/minute",
 }
+_FINGERPRINT_SALT = b"effective-boolean-filter-api-key-fingerprint-v1"
+_FINGERPRINT_ROUNDS = 120_000
 
 
 @dataclass(frozen=True)
@@ -95,7 +97,13 @@ def _truthy(value: str | None) -> bool:
 
 
 def _fingerprint(token: str) -> str:
-    return hashlib.sha256(token.encode("utf-8")).hexdigest()[:16]
+    return hashlib.pbkdf2_hmac(
+        "sha256",
+        token.encode("utf-8"),
+        _FINGERPRINT_SALT,
+        _FINGERPRINT_ROUNDS,
+        dklen=8,
+    ).hex()
 
 
 def parse_api_keys(value: str, *, default_plan: str = "starter") -> tuple[ConfiguredApiKey, ...]:
