@@ -23,6 +23,8 @@ from typing import Any
 VALID_PLANS = {"demo", "starter", "pro", "enterprise"}
 SLUG_RE = re.compile(r"^[a-z0-9][a-z0-9_-]{1,62}[a-z0-9]$")
 CURRENCY_RE = re.compile(r"^[A-Z]{3}$")
+FINGERPRINT_SALT = b"effective-boolean-filter-api-key-fingerprint-v1"
+FINGERPRINT_ROUNDS = 120_000
 
 
 @dataclass(frozen=True)
@@ -102,7 +104,13 @@ def provision_key(
         raise ValueError("token_bytes must be at least 24")
 
     token = secrets.token_urlsafe(token_bytes)
-    fingerprint = hashlib.sha256(token.encode("utf-8")).hexdigest()[:16]
+    fingerprint = hashlib.pbkdf2_hmac(
+        "sha256",
+        token.encode("utf-8"),
+        FINGERPRINT_SALT,
+        FINGERPRINT_ROUNDS,
+        dklen=8,
+    ).hex()
     env_entry = f"{customer_id}:{plan}:{token}"
     normalized_base_url = normalize_base_url(base_url)
     dashboard_url = (
