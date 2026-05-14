@@ -44,6 +44,16 @@
 - [x] Azatoth/inputer live LLM candidate generation behind shared plumbing
 - [x] No-network advisory provider status/preflight
 
+### Sprint 7: Commercial operations
+- [x] Public mode API-key gate
+- [x] Dashboard access-key cookie bootstrap
+- [x] Per-plan rate limiting
+- [x] Commercial plan/status endpoints
+- [x] Terms/privacy draft endpoints
+- [x] Docker/Render/GHCR deployment path
+- [ ] Payment provider webhook provisioning
+- [ ] Tenant database for API keys and report retention
+
 ### Deferred
 - [ ] Full LLM advisory parser/probe wrapper provider integration
 

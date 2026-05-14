@@ -10,22 +10,46 @@ prerequisite for public exposure unless explicitly marked optional.
 > developer's own machine. It is not safe to bind to `0.0.0.0` or
 > place behind a public domain without completing the items below.
 
+## Implemented baseline controls
+
+The FastAPI app now includes an opt-in public/commercial mode:
+
+```text
+EBF_PUBLIC_MODE=1
+EBF_API_KEYS=<key-id>:<plan>:<secret-token>
+EBF_REPORT_STORE=file:/data/reports
+```
+
+Implemented:
+
+- API-key auth via `Authorization: Bearer <token>` or `X-API-Key`.
+- Dashboard cookie bootstrap via `/?access_key=<token>`.
+- Docs/OpenAPI disabled by default in public mode.
+- In-memory per-key/per-plan fixed-window rate limits.
+- Public commercial/legal metadata endpoints.
+- Dockerfile, Render blueprint, pinned `requirements-lock.txt`, and GHCR
+  container publishing workflow.
+
+Still external to this codebase:
+
+- TLS termination and HSTS at the host/proxy.
+- Payment processor checkout and tax/invoicing flow.
+- Final Terms/Privacy review by counsel.
+- Backup, deletion, and retention operations for each tenant.
+
 ## 1. Authentication
 
-The API has no authentication of any kind. Every endpoint is
-anonymous in the local-only configuration; that is intentional for
-local demos and unacceptable for the public internet.
+Public mode now has API-key authentication. The default local mode still has
+anonymous access for developer demos; that is intentional locally and
+unacceptable for the public internet.
 
-- [ ] Decide on an auth model: API key (machine-to-machine), OAuth
-      (per-user), or session cookie + login (browser dashboard).
-- [ ] Front the FastAPI app with a reverse proxy (Caddy, nginx,
-      Traefik) **or** add an auth dependency at the FastAPI layer
-      (`Depends(verify_token)`).
-- [ ] Reject unauthenticated requests with `401`, not `403` or `200`.
-- [ ] Apply auth uniformly to every endpoint — `POST /evaluate_argument`,
+- [x] Decide on an auth model: API key (machine-to-machine) plus cookie
+      bootstrap for the browser dashboard.
+- [x] Add an auth dependency at the FastAPI layer.
+- [x] Reject unauthenticated requests with `401`, not `403` or `200`.
+- [x] Apply auth uniformly to every endpoint in public mode: `POST /evaluate_argument`,
       `POST /generate_probes`, `POST /score_probe_results`,
-      `GET /reports/{id}`, **including** `GET /` (dashboard) and
-      `GET /health` if `/health` reveals environment details.
+      `GET /reports/{id}`, including `GET /` (dashboard).
 - [ ] Rotate API keys / revoke tokens out of band; do not commit
       keys to the repo.
 - [ ] Log auth failures (with rate of failures), not auth successes
@@ -38,10 +62,9 @@ Pydantic enforces per-request body size (claim ≤ 4000, argument ≤
 the same as request-rate limiting — a single client can still flood
 the engine with full-size requests.
 
-- [ ] Per-IP rate limit on unauthenticated requests, e.g. 10
-      requests per minute on `POST /evaluate_argument`.
-- [ ] Per-identity rate limit on authenticated requests, separately
-      tracked.
+- [x] Public-mode anonymous requests are blocked before engine endpoints.
+- [x] Per-identity rate limit on authenticated requests, separately
+      tracked by key fingerprint and plan.
 - [ ] Stricter ceilings on `POST /evaluate_argument` and
       `POST /score_probe_results` (engine work) than on
       `POST /generate_probes` (cheap parse-only).
@@ -49,7 +72,7 @@ the engine with full-size requests.
       8 KB for `/generate_probes`, 32 KB for the others — so an
       attacker cannot keep Pydantic busy parsing a 10 MB payload
       that would have been rejected anyway.
-- [ ] Document the limits publicly so legitimate clients know what
+- [x] Document the limits publicly so legitimate clients know what
       to expect; emit `Retry-After` on `429` responses.
 
 ## 3. HTTPS

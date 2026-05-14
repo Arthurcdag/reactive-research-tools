@@ -1,0 +1,119 @@
+# Operations and Monetization
+
+This repo can now run as a public, API-key-gated service while remaining
+separate from IFRS workspaces and any sealed-company material.
+
+## Separation Rule
+
+Keep three boundaries separate:
+
+- IFRS/public-sector work stays in its own workspace, accounts, storage, and
+  authorization chain.
+- Any sealed company stays sealed: no names, files, private strategy, keys,
+  customer data, or internal notes should be copied into this repo.
+- The commercial Reactive Research Tools service uses its own GitHub repo,
+  hosting account, domain, payment account, API keys, and report storage.
+
+Do not use institutional files, private research notes, or customer content as
+demo data unless that tenant has written authorization and a data-processing
+basis.
+
+## Public Service Configuration
+
+Required production variables:
+
+```text
+EBF_PUBLIC_MODE=1
+EBF_API_KEYS=<key-id>:<plan>:<secret-token>
+EBF_REPORT_STORE=file:/data/reports
+```
+
+Supported API key formats:
+
+```text
+<secret-token>
+<key-id>:<secret-token>
+<key-id>:<plan>:<secret-token>
+```
+
+Clients can authenticate with either:
+
+```text
+Authorization: Bearer <secret-token>
+X-API-Key: <secret-token>
+```
+
+Browser customers can open the dashboard once with:
+
+```text
+https://your-domain/?access_key=<secret-token>
+```
+
+The server sets an HttpOnly cookie so later same-origin dashboard calls are
+authenticated without putting the key in JavaScript.
+
+## Plans
+
+The API exposes plan metadata at:
+
+```text
+GET /commercial/plans
+GET /commercial/status
+```
+
+Default commercial tiers:
+
+- `demo`: local or low-volume demo.
+- `starter`: paid dashboard/API access.
+- `pro`: higher API ceiling and advisory-wrapper usage.
+- `enterprise`: private tenant, custom DPA/SLA, dedicated storage boundary.
+
+Rate limits are per API key fingerprint. Defaults can be overridden:
+
+```text
+EBF_PLAN_LIMITS=starter=120/minute,pro=600/minute,enterprise=1800/minute
+```
+
+## Billing Flow
+
+Billing is intentionally external in this version.
+
+1. Customer pays through Stripe, Mercado Pago, invoice, or another processor.
+2. Operator provisions an API key with the paid plan.
+3. Customer receives the dashboard URL and API key.
+4. Failed payment or cancellation means the key is removed or rotated.
+
+Do not put payment secrets in this repo. Store processor keys only in the
+hosting provider secret manager.
+
+## Deploy
+
+Render:
+
+1. Connect this GitHub repo.
+2. Use the included `render.yaml`.
+3. Let Render generate `EBF_API_KEYS`, or replace it with a planned key:
+   `customer-a:starter:<long-random-secret>`.
+4. Confirm `/health` returns `{"status":"ok"}`.
+5. Open `/?access_key=<secret-token>` once in the browser.
+
+Container:
+
+```bash
+docker build -t reactive-research-tools .
+docker run --rm -p 8000:8000 \
+  -e EBF_PUBLIC_MODE=1 \
+  -e EBF_API_KEYS=local:starter:dev-secret \
+  -e EBF_REPORT_STORE=file:/data/reports \
+  -v ebf-reports:/data \
+  reactive-research-tools
+```
+
+## Remaining Launch Work
+
+- Review final Terms of Service and Privacy Notice with counsel.
+- Choose payment processor and invoice/tax flow.
+- Add a key-provisioning database or admin script once there are multiple
+  customers.
+- Decide retention period and deletion workflow for persisted reports.
+- Put TLS, access logs, and backups under the hosting provider runbook.

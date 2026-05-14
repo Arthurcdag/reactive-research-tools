@@ -33,7 +33,15 @@ except ImportError:  # pragma: no cover
     BaseModel = object  # type: ignore[assignment,misc]
 
 from .engine import evaluate_argument
+from .commercial import PRIVACY_SUMMARY, TERMS_SUMMARY, plans_payload
 from .dashboard import render_dashboard_html
+from .operations import (
+    FixedWindowRateLimiter,
+    authenticate_request,
+    identity_key,
+    is_public_path,
+    load_access_config,
+)
 from .parser import parse_argument, parse_claim
 from .probes import generate_probes as gen_probes
 from .report import to_json_dict
@@ -169,16 +177,18 @@ def create_app(
     Nyahlothep outputer endpoint resolves them lazily per-request.
     """
     try:
-        from fastapi import FastAPI, HTTPException
-        from fastapi.responses import HTMLResponse
+        from fastapi import FastAPI, HTTPException, Request
+        from fastapi.responses import HTMLResponse, JSONResponse, PlainTextResponse
     except ImportError as e:  # pragma: no cover
         raise RuntimeError(
             "FastAPI not installed. Run: pip install fastapi uvicorn pydantic"
         ) from e
+    globals()["Request"] = Request
 
     if not _HAS_PYDANTIC:  # pragma: no cover
         raise RuntimeError("pydantic not installed. Run: pip install pydantic")
 
+    access_config = load_access_config()
     app = FastAPI(
         title="Effective Boolean Argument Filter",
         version="1.0.0",
@@ -186,10 +196,16 @@ def create_app(
             "A traceable argument-effect filter. Not a truth oracle. "
             "Inputs are treated as data, never as instructions."
         ),
+        docs_url="/docs" if access_config.docs_enabled else None,
+        redoc_url="/redoc" if access_config.docs_enabled else None,
+        openapi_url="/openapi.json" if access_config.docs_enabled else None,
     )
 
     reports: ReportStore = store if store is not None else get_store()
     app.state.report_store = reports
+    app.state.access_config = access_config
+    rate_limiter = FixedWindowRateLimiter(access_config.plan_limits)
+    app.state.rate_limiter = rate_limiter
     ledger: AdvisoryLedger = (
         advisory_ledger if advisory_ledger is not None else get_advisory_ledger()
     )
@@ -197,12 +213,49 @@ def create_app(
 
     @app.middleware("http")
     async def add_security_headers(request: Any, call_next: Any) -> Any:
-        response = await call_next(request)
+        auth = authenticate_request(request, access_config)
+        request.state.ebf_identity = auth.identity
+
+        if access_config.require_api_key and auth.identity is None and not is_public_path(request.url.path):
+            response = JSONResponse(
+                {"detail": "API key required"},
+                status_code=401,
+                headers={"WWW-Authenticate": 'Bearer realm="effective-boolean-filter"'},
+            )
+        else:
+            decision = None
+            if access_config.rate_limit_enabled and not is_public_path(request.url.path):
+                key, plan = identity_key(request, auth.identity)
+                decision = rate_limiter.check(key, plan)
+                if not decision.allowed:
+                    response = JSONResponse(
+                        {"detail": "rate limit exceeded"},
+                        status_code=429,
+                        headers=decision.headers(),
+                    )
+                else:
+                    response = await call_next(request)
+                    response.headers.update(decision.headers())
+            else:
+                response = await call_next(request)
+
         response.headers["X-Content-Type-Options"] = "nosniff"
         response.headers["Referrer-Policy"] = "no-referrer"
         response.headers["Permissions-Policy"] = (
             "camera=(), microphone=(), geolocation=(), payment=()"
         )
+        if auth.identity is not None:
+            response.headers["X-EBF-Key-Id"] = auth.identity.key_id
+            response.headers["X-EBF-Plan"] = auth.identity.plan
+        if auth.bootstrap_token and response.status_code < 400:
+            response.set_cookie(
+                access_config.cookie_name,
+                auth.bootstrap_token,
+                max_age=7 * 24 * 60 * 60,
+                httponly=True,
+                secure=access_config.cookie_secure,
+                samesite="lax",
+            )
         return response
 
     @app.get("/", response_class=HTMLResponse)
@@ -220,6 +273,30 @@ def create_app(
         )
         response.headers["Cache-Control"] = "no-store"
         return response
+
+    @app.get("/commercial/plans")
+    def commercial_plans() -> dict[str, object]:
+        return plans_payload()
+
+    @app.get("/commercial/status")
+    def commercial_status(request: Request) -> dict[str, object]:
+        identity = getattr(request.state, "ebf_identity", None)
+        if identity is None:
+            return {"authenticated": False, "plan": "anonymous"}
+        return {
+            "authenticated": True,
+            "key_id": identity.key_id,
+            "plan": identity.plan,
+            "fingerprint": identity.fingerprint,
+        }
+
+    @app.get("/legal/terms", response_class=PlainTextResponse)
+    def legal_terms() -> PlainTextResponse:
+        return PlainTextResponse(TERMS_SUMMARY)
+
+    @app.get("/legal/privacy", response_class=PlainTextResponse)
+    def legal_privacy() -> PlainTextResponse:
+        return PlainTextResponse(PRIVACY_SUMMARY)
 
 
     @app.post("/evaluate_argument")

@@ -1,0 +1,19 @@
+services:
+  - type: web
+    name: reactive-research-tools
+    env: docker
+    plan: starter
+    healthCheckPath: /health
+    disk:
+      name: reports
+      mountPath: /data
+      sizeGB: 10
+    envVars:
+      - key: EBF_PUBLIC_MODE
+        value: "1"
+      - key: EBF_REPORT_STORE
+        value: file:/data/reports
+      - key: EBF_DEFAULT_PLAN
+        value: starter
+      - key: EBF_API_KEYS
+        generateValue: true
