@@ -86,6 +86,27 @@ Billing is intentionally external in this version.
 Do not put payment secrets in this repo. Store processor keys only in the
 hosting provider secret manager.
 
+Provision a key:
+
+```bash
+python scripts/provision_customer_key.py \
+  --customer-id customer-a \
+  --plan starter \
+  --base-url https://your-domain
+```
+
+The command prints an `EBF_API_KEYS` entry and a one-time dashboard bootstrap
+URL. Store the generated token in a password vault or hosting secret manager.
+Generated local files such as `secrets/` and `customer_keys*.env` are ignored by
+Git.
+
+Customer offboarding:
+
+1. Remove the customer's entry from `EBF_API_KEYS`.
+2. Restart/redeploy the service.
+3. Confirm `GET /commercial/status` returns `401` for that key.
+4. Apply the retention/deletion policy for the customer's reports.
+
 ## Deploy
 
 Render:

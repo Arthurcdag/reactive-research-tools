@@ -34,6 +34,18 @@ Expected fields:
 4. Send the customer the new dashboard bootstrap URL.
 5. Remove the old key after the cutover window.
 
+Generate the replacement:
+
+```bash
+python scripts/provision_customer_key.py \
+  --customer-id customer-a \
+  --plan starter \
+  --base-url https://your-domain
+```
+
+Never paste old or new tokens into public issues, commits, screenshots, or
+support messages.
+
 ## Incident Checklist
 
 - Disable or rotate suspected keys.

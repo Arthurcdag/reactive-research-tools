@@ -20,6 +20,9 @@ Thumbs.db
 
 # Local outputs
 local/
+secrets/
+customer_keys*.env
+customer_keys*.json
 *_results.csv
 *_summary.json
 *_report.md
