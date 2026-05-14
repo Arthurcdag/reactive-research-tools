@@ -95,7 +95,7 @@ def _truthy(value: str | None) -> bool:
 
 
 def _fingerprint(token: str) -> str:
-    return hashlib.sha256(token.encode("utf-8")).hexdigest()[:16]
+    return hashlib.blake2b(token.encode("utf-8"), digest_size=8).hexdigest()
 
 
 def parse_api_keys(value: str, *, default_plan: str = "starter") -> tuple[ConfiguredApiKey, ...]:
