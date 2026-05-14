@@ -19,6 +19,7 @@ Thumbs.db
 .idea/
 
 # Local outputs
+local/
 *_results.csv
 *_summary.json
 *_report.md
