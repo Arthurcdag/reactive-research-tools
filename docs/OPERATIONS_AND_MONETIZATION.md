@@ -107,6 +107,15 @@ Customer offboarding:
 3. Confirm `GET /commercial/status` returns `401` for that key.
 4. Apply the retention/deletion policy for the customer's reports.
 
+## Brazil-Japan Delegation
+
+If Conka8 administers legal or monetary work from Japan, keep that role
+administrative and bounded. Conka8 can coordinate counsel, accounting, payment
+providers, and reconciliation, but should not receive unrestricted signing
+authority, product control, customer-content access, or API secret custody.
+
+See [`docs/legal/BRAZIL_JAPAN_CONKA8_DELEGATION_PLAYBOOK.md`](legal/BRAZIL_JAPAN_CONKA8_DELEGATION_PLAYBOOK.md).
+
 ## Deploy
 
 Render:

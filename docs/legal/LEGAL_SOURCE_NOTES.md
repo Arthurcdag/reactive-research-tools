@@ -29,3 +29,29 @@ the current rule for the actual jurisdiction before launch.
 
 Do not accept paid customers until entity, tax, payment, privacy, retention, and
 customer-support obligations have been checked against the current jurisdiction.
+
+## Brazil / Japan References
+
+- Brazil, Redesim, "Abrir CNPJ": official path for viability, CNPJ
+  registration, and licensing steps.
+  https://www.gov.br/empresas-e-negocios/pt-br/redesim/abrir-cnpj
+
+- Receita Federal, CNPJ services.
+  https://www.gov.br/receitafederal/pt-br/servicos/cadastro/cnpj
+
+- ANPD, data-subject and controller/operator definitions under LGPD.
+  https://www.gov.br/anpd/pt-br/assuntos/titular-de-dados-1/titular-de-dados
+
+- Banco Central do Brasil, authorized payment arrangements reference.
+  https://www.bcb.gov.br/estabilidadefinanceira/relacaoarranjosintegrantes
+
+- JETRO, "Setting Up Business" in Japan.
+  https://www.jetro.go.jp/en/invest/setting_up/
+
+- Japan National Tax Agency, corporation establishment notification guidelines.
+  https://www.nta.go.jp/english/Guidelines.htm
+
+- Japanese Law Translation, Companies Act. Articles around representative
+  directors are especially relevant before granting anyone Japan-side signing or
+  representation authority.
+  https://www.japaneselawtranslation.go.jp/en/laws/view/4481/en
