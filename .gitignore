@@ -19,6 +19,14 @@ Thumbs.db
 .idea/
 
 # Local outputs
+local/
+secrets/
+customer_keys*.env
+customer_keys*.json
+customer_registry*.json
+reconciliation*.md
+operator_exports/
+monthly_close/
 *_results.csv
 *_summary.json
 *_report.md

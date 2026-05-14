@@ -142,6 +142,40 @@ deterministic filter remains the only verdict source.
 The dashboard also exposes a no-network provider status check so config can be
 verified without sending seed/report data to a provider.
 
+## Production / commercial mode
+
+For a public or paid deployment, enable API-key gating and persistent report
+storage:
+
+```bash
+EBF_PUBLIC_MODE=1 \
+EBF_API_KEYS=customer-a:starter:<long-random-secret> \
+EBF_REPORT_STORE=file:/data/reports \
+python -m uvicorn effective_boolean_filter.api:app \
+  --app-dir projects/effective_boolean_filter/src \
+  --host 0.0.0.0 \
+  --port 8000
+```
+
+Then open the dashboard once with:
+
+```text
+https://your-domain/?access_key=<long-random-secret>
+```
+
+Commercial endpoints:
+
+```text
+GET /commercial/plans
+GET /commercial/status
+GET /legal/terms
+GET /legal/privacy
+```
+
+See [`docs/OPERATIONS_AND_MONETIZATION.md`](docs/OPERATIONS_AND_MONETIZATION.md)
+for the second-company separation rule, pricing tiers, deployment process, and
+remaining legal/payment work.
+
 Run the Xi–Jensen dashboard if the corresponding generated scripts and dependencies are present:
 
 ```bash
