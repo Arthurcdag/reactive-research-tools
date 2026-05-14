@@ -4,8 +4,9 @@ from __future__ import annotations
 
 import argparse
 import json
-from collections import Counter
+from collections import Counter, defaultdict
 from datetime import datetime, timezone
+from decimal import Decimal, InvalidOperation
 from pathlib import Path
 from typing import Any
 
@@ -35,6 +36,9 @@ def customer_rows(data: dict[str, Any]) -> list[dict[str, str]]:
                 "contracting_entity": str(item.get("contracting_entity", "")),
                 "key_fingerprint": str(item.get("key_fingerprint", "")),
                 "created_at": str(item.get("created_at", "")),
+                "updated_at": str(item.get("updated_at", "")),
+                "monthly_amount": str(item.get("monthly_amount", "")),
+                "currency": str(item.get("currency", "")),
             }
         )
     return sorted(rows, key=lambda row: (row["status"], row["customer_id"], row["plan"]))
@@ -44,6 +48,16 @@ def render_markdown(data: dict[str, Any], *, title: str = "Customer Reconciliati
     rows = customer_rows(data)
     by_status = Counter(row["status"] or "unknown" for row in rows)
     by_plan = Counter(row["plan"] or "unknown" for row in rows)
+    active_by_currency: dict[str, Decimal] = defaultdict(Decimal)
+    for row in rows:
+        if row["status"] != "active":
+            continue
+        try:
+            amount = Decimal(row["monthly_amount"] or "0")
+        except InvalidOperation:
+            amount = Decimal("0")
+        currency = row["currency"] or "unassigned"
+        active_by_currency[currency] += amount
     generated_at = datetime.now(timezone.utc).replace(microsecond=0).isoformat()
 
     lines = [
@@ -61,20 +75,23 @@ def render_markdown(data: dict[str, Any], *, title: str = "Customer Reconciliati
         lines.append(f"- {status}: {count}")
     for plan, count in sorted(by_plan.items()):
         lines.append(f"- plan {plan}: {count}")
+    for currency, amount in sorted(active_by_currency.items()):
+        lines.append(f"- active MRR {currency}: {amount:.2f}")
 
     lines.extend(
         [
             "",
             "## Customers",
             "",
-            "| Customer | Plan | Status | Payment ref | Entity | Key fingerprint | Created |",
-            "|---|---|---|---|---|---|---|",
+            "| Customer | Plan | Status | Amount | Payment ref | Entity | Key fingerprint | Updated |",
+            "|---|---|---|---:|---|---|---|---|",
         ]
     )
     for row in rows:
         lines.append(
-            "| {customer_id} | {plan} | {status} | {payment_reference} | "
-            "{contracting_entity} | {key_fingerprint} | {created_at} |".format(**row)
+            "| {customer_id} | {plan} | {status} | {currency} {monthly_amount} | "
+            "{payment_reference} | {contracting_entity} | {key_fingerprint} | "
+            "{updated_at} |".format(**row)
         )
     lines.extend(
         [
@@ -84,6 +101,7 @@ def render_markdown(data: dict[str, Any], *, title: str = "Customer Reconciliati
             "- [ ] Reconcile active customer count against paid invoices.",
             "- [ ] Confirm suspended/non-paying customers are removed from EBF_API_KEYS.",
             "- [ ] Confirm bank/payment processor settlement for each payment reference.",
+            "- [ ] Confirm active MRR by currency matches payment processor reporting.",
             "- [ ] Report discrepancies to product operator without requesting API tokens.",
         ]
     )

@@ -65,12 +65,23 @@ def test_append_registry_writes_no_secret_record(tmp_path):
         key,
         payment_reference="INV-001",
         contracting_entity="brazil-entity",
+        monthly_amount="29",
+        currency="brl",
     )
     text = registry.read_text(encoding="utf-8")
     assert key.token not in text
     assert record.key_fingerprint == key.fingerprint
+    assert record.monthly_amount == "29.00"
+    assert record.currency == "BRL"
     assert "INV-001" in text
     assert "brazil-entity" in text
+
+
+def test_append_registry_rejects_bad_monthly_amount(tmp_path):
+    module = _module()
+    key = module.provision_key(customer_id="customer-a", plan="starter", token_bytes=24)
+    with pytest.raises(ValueError, match="monthly amount"):
+        module.append_registry(tmp_path / "customer_registry.json", key, monthly_amount="-1")
 
 
 def test_append_registry_rejects_duplicate_fingerprint(tmp_path):

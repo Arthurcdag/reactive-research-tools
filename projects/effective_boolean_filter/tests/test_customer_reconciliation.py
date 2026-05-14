@@ -32,6 +32,9 @@ def test_reconciliation_report_excludes_tokens():
                 "contracting_entity": "brazil-entity",
                 "key_fingerprint": "abc123",
                 "created_at": "2026-05-14T00:00:00+00:00",
+                "updated_at": "2026-05-14T01:00:00+00:00",
+                "monthly_amount": "29",
+                "currency": "BRL",
                 "token": "must-not-render",
             }
         ],
@@ -41,6 +44,8 @@ def test_reconciliation_report_excludes_tokens():
     assert "customer-a" in report
     assert "INV-001" in report
     assert "abc123" in report
+    assert "active MRR BRL: 29.00" in report
+    assert "| customer-a | starter | active | BRL 29 |" in report
     assert "must-not-render" not in report
 
 
@@ -55,3 +60,28 @@ def test_customer_rows_sort_stably():
     }
     rows = module.customer_rows(data)
     assert [row["customer_id"] for row in rows] == ["alpha", "zeta"]
+
+
+def test_reconciliation_only_counts_active_mrr():
+    module = _module()
+    data = {
+        "schema": "rtt_customer_registry_v1",
+        "customers": [
+            {
+                "customer_id": "active-customer",
+                "plan": "pro",
+                "status": "active",
+                "monthly_amount": "79.50",
+                "currency": "USD",
+            },
+            {
+                "customer_id": "suspended-customer",
+                "plan": "pro",
+                "status": "suspended",
+                "monthly_amount": "79.50",
+                "currency": "USD",
+            },
+        ],
+    }
+    report = module.render_markdown(data)
+    assert "active MRR USD: 79.50" in report

@@ -15,12 +15,14 @@ import secrets
 import sys
 from dataclasses import asdict, dataclass
 from datetime import datetime, timezone
+from decimal import Decimal, InvalidOperation
 from pathlib import Path
 from typing import Any
 
 
 VALID_PLANS = {"demo", "starter", "pro", "enterprise"}
 SLUG_RE = re.compile(r"^[a-z0-9][a-z0-9_-]{1,62}[a-z0-9]$")
+CURRENCY_RE = re.compile(r"^[A-Z]{3}$")
 
 
 @dataclass(frozen=True)
@@ -42,6 +44,8 @@ class RegistryRecord:
     created_at: str
     payment_reference: str
     contracting_entity: str
+    monthly_amount: str
+    currency: str
 
 
 def normalize_base_url(value: str | None) -> str | None:
@@ -62,6 +66,26 @@ def validate_customer_id(value: str) -> str:
             "customer id must be 3-64 chars: lowercase letters, numbers, '-' or '_'"
         )
     return customer_id
+
+
+def normalize_monthly_amount(value: str) -> str:
+    stripped = value.strip()
+    if not stripped:
+        return ""
+    try:
+        amount = Decimal(stripped)
+    except InvalidOperation as exc:
+        raise ValueError("monthly amount must be a number") from exc
+    if amount < 0:
+        raise ValueError("monthly amount must be zero or greater")
+    return format(amount.quantize(Decimal("0.01")), "f")
+
+
+def normalize_currency(value: str) -> str:
+    currency = value.strip().upper()
+    if currency and not CURRENCY_RE.match(currency):
+        raise ValueError("currency must be a 3-letter ISO code")
+    return currency
 
 
 def provision_key(
@@ -117,6 +141,8 @@ def registry_record(
     *,
     payment_reference: str = "",
     contracting_entity: str = "",
+    monthly_amount: str = "",
+    currency: str = "",
     created_at: str | None = None,
 ) -> RegistryRecord:
     return RegistryRecord(
@@ -127,6 +153,8 @@ def registry_record(
         created_at=created_at or datetime.now(timezone.utc).replace(microsecond=0).isoformat(),
         payment_reference=payment_reference.strip(),
         contracting_entity=contracting_entity.strip(),
+        monthly_amount=normalize_monthly_amount(monthly_amount),
+        currency=normalize_currency(currency),
     )
 
 
@@ -148,12 +176,16 @@ def append_registry(
     *,
     payment_reference: str = "",
     contracting_entity: str = "",
+    monthly_amount: str = "",
+    currency: str = "",
 ) -> RegistryRecord:
     data = load_registry(path)
     record = registry_record(
         provisioned,
         payment_reference=payment_reference,
         contracting_entity=contracting_entity,
+        monthly_amount=monthly_amount,
+        currency=currency,
     )
     existing_fingerprints = {
         str(item.get("key_fingerprint", ""))
@@ -209,6 +241,16 @@ def parse_args(argv: list[str]) -> argparse.Namespace:
         default="",
         help="Contracting entity label stored in the no-secret registry",
     )
+    parser.add_argument(
+        "--monthly-amount",
+        default="",
+        help="Monthly amount stored in the no-secret registry for MRR reconciliation",
+    )
+    parser.add_argument(
+        "--currency",
+        default="",
+        help="Currency code stored in the no-secret registry, e.g. BRL, JPY, USD",
+    )
     return parser.parse_args(argv)
 
 
@@ -233,6 +275,8 @@ def main(argv: list[str] | None = None) -> int:
             provisioned,
             payment_reference=args.payment_reference,
             contracting_entity=args.contracting_entity,
+            monthly_amount=args.monthly_amount,
+            currency=args.currency,
         )
 
     if args.format == "json":

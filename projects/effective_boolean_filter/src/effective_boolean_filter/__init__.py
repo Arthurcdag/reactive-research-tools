@@ -65,6 +65,12 @@ from .trace_gate import (
     PromotionReceipt,
     RealityGateReceipt,
 )
+from .pulse_grab import (
+    PULSE_GRAB_MODE,
+    PulseGrabDecision,
+    evaluate_pulse_grab,
+    verify_pulse_grab_decision,
+)
 from .schemas import (
     ArgumentInput,
     ClaimNode,
@@ -103,12 +109,14 @@ __all__ = [
     "NyahlothepSelection",
     "OutputerResult",
     "OutputerValidationError",
+    "PULSE_GRAB_MODE",
     "PROMPT_VERSION",
     "PipelineInvariantError",
     "PipelineTrace",
     "Polarity",
     "Probe",
     "PromotionReceipt",
+    "PulseGrabDecision",
     "RealityGateReceipt",
     "STYLES",
     "ScoreVector",
@@ -120,6 +128,7 @@ __all__ = [
     "derive_cache_key",
     "derive_inputer_cache_key",
     "evaluate_argument",
+    "evaluate_pulse_grab",
     "generate_inputer",
     "generate_outputer",
     "generate_probes",
@@ -134,4 +143,5 @@ __all__ = [
     "to_json_dict",
     "validate_inputer_payload",
     "validate_outputer_payload",
+    "verify_pulse_grab_decision",
 ]

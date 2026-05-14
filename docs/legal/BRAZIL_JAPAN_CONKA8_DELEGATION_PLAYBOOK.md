@@ -39,14 +39,21 @@ Conka8 should not be authorized to:
 - access customer reports or API secrets without explicit need;
 - mix personal, sealed-company, and second-company funds.
 
+Use Pulse Grab controls for any action that touches money movement, legal
+terms, API secrets, customer content, or public claims. The action should be
+held until required controls are present; it should not be silently deleted
+from the workflow.
+
 ## Operating Workflow
 
 1. Customer pays through the selected processor or invoice route.
 2. Conka8 confirms receipt/reconciliation only, not product entitlement.
 3. The operator provisions the API key using `scripts/provision_customer_key.py`.
-4. Conka8 records invoice/payment metadata, not the secret token.
-5. If payment fails, Conka8 notifies operator; operator disables/removes key.
-6. Monthly close reconciles processor, bank, invoices, `EBF_API_KEYS`, and
+4. Conka8 records invoice/payment metadata and MRR totals, not the secret token.
+5. If payment fails, Conka8 notifies operator; operator marks the registry
+   entry suspended and disables/removes the key.
+6. Monthly close reconciles processor, bank, invoices, lifecycle status,
+   `EBF_API_KEYS`, and
    customer report retention status.
 
 No-secret customer registry:
@@ -58,7 +65,19 @@ python scripts/provision_customer_key.py \
   --base-url https://your-domain \
   --registry-file operator_exports/customer_registry.json \
   --payment-reference INV-2026-001 \
-  --contracting-entity brazil-entity
+  --contracting-entity brazil-entity \
+  --monthly-amount 29 \
+  --currency BRL
+```
+
+Lifecycle updates:
+
+```bash
+python scripts/customer_lifecycle.py \
+  --registry-file operator_exports/customer_registry.json \
+  --customer-id customer-a \
+  --status suspended \
+  --note "payment failed"
 ```
 
 Conka8-safe reconciliation:
@@ -111,4 +130,5 @@ python scripts/customer_reconciliation.py \
 - [ ] Payment account owner verified.
 - [ ] No commingling with sealed-company or IFRS assets.
 - [ ] API key process tested without sharing token with Conka8.
+- [ ] Lifecycle update process tested for active, suspended, and canceled states.
 - [ ] Monthly reconciliation process assigned.

@@ -95,13 +95,40 @@ python scripts/provision_customer_key.py \
   --base-url https://your-domain \
   --registry-file operator_exports/customer_registry.json \
   --payment-reference INV-2026-001 \
-  --contracting-entity brazil-entity
+  --contracting-entity brazil-entity \
+  --monthly-amount 29 \
+  --currency BRL
 ```
 
 The command prints an `EBF_API_KEYS` entry and a one-time dashboard bootstrap
 URL. Store the generated token in a password vault or hosting secret manager.
 Generated local files such as `secrets/` and `customer_keys*.env` are ignored by
 Git.
+
+Update customer lifecycle state without exposing tokens:
+
+```bash
+python scripts/customer_lifecycle.py \
+  --registry-file operator_exports/customer_registry.json \
+  --customer-id customer-a \
+  --status suspended \
+  --note "payment failed"
+```
+
+Use the same command for paid reactivation, cancellation, plan changes, payment
+references, and amount changes:
+
+```bash
+python scripts/customer_lifecycle.py \
+  --registry-file operator_exports/customer_registry.json \
+  --customer-id customer-a \
+  --status active \
+  --plan pro \
+  --payment-reference INV-2026-002 \
+  --monthly-amount 79 \
+  --currency BRL \
+  --note "upgraded after invoice payment"
+```
 
 Generate a no-secret reconciliation report for Conka8:
 
@@ -113,15 +140,18 @@ python scripts/customer_reconciliation.py \
 ```
 
 The reconciliation report includes customer IDs, plan names, payment
-references, entity labels, and token fingerprints. It intentionally excludes
-API tokens and customer report content.
+references, monthly amount by currency, entity labels, lifecycle status, and
+token fingerprints. It intentionally excludes API tokens and customer report
+content.
 
 Customer offboarding:
 
-1. Remove the customer's entry from `EBF_API_KEYS`.
-2. Restart/redeploy the service.
-3. Confirm `GET /commercial/status` returns `401` for that key.
-4. Apply the retention/deletion policy for the customer's reports.
+1. Mark the registry entry `suspended` or `canceled` with
+   `scripts/customer_lifecycle.py`.
+2. Remove the customer's entry from `EBF_API_KEYS`.
+3. Restart/redeploy the service.
+4. Confirm `GET /commercial/status` returns `401` for that key.
+5. Apply the retention/deletion policy for the customer's reports.
 
 ## Brazil-Japan Delegation
 
@@ -131,6 +161,15 @@ providers, and reconciliation, but should not receive unrestricted signing
 authority, product control, customer-content access, or API secret custody.
 
 See [`docs/legal/BRAZIL_JAPAN_CONKA8_DELEGATION_PLAYBOOK.md`](legal/BRAZIL_JAPAN_CONKA8_DELEGATION_PLAYBOOK.md).
+
+## Pulse Grab Security
+
+For actions that touch money, API secrets, legal terms, customer content, or
+public claims, use Pulse Grab as an execution hold instead of deleting possible
+actions from the workflow. A held action can proceed once its missing controls
+are supplied.
+
+See [`docs/security/PULSE_GRAB_SECURITY.md`](security/PULSE_GRAB_SECURITY.md).
 
 ## Deploy
 
@@ -159,7 +198,7 @@ docker run --rm -p 8000:8000 \
 
 - Review final Terms of Service and Privacy Notice with counsel.
 - Choose payment processor and invoice/tax flow.
-- Add a key-provisioning database or admin script once there are multiple
-  customers.
+- Add a key-provisioning database or admin UI once the JSON registry becomes
+  operationally awkward.
 - Decide retention period and deletion workflow for persisted reports.
 - Put TLS, access logs, and backups under the hosting provider runbook.
