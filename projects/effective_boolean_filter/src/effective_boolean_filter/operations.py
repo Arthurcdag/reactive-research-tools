@@ -19,6 +19,11 @@ PUBLIC_PATHS = {
     "/commercial/plans",
     "/legal/terms",
     "/legal/privacy",
+    # Payment webhook is signature-gated (the provider's secret is the
+    # auth), so it must bypass the API-key check. Rate-limiting it would
+    # also be wrong: Stripe retries on non-2xx and our own 429 would
+    # cause delivery drops on real events.
+    "/commercial/webhook/stripe",
 }
 
 DEFAULT_PLAN_LIMITS = {

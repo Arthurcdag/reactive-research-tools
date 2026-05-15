@@ -13,6 +13,7 @@ Endpoints:
   GET  /advisory/ledger
   GET  /advisory/ledger/{entry_id}
   POST /advisory/ledger/{entry_id}/replay
+  POST /commercial/webhook/stripe
   GET  /
   GET  /reports/{id}
 
@@ -22,6 +23,7 @@ boot the API.
 """
 from __future__ import annotations
 
+import json
 import secrets
 from typing import Any
 
@@ -43,6 +45,17 @@ from .operations import (
     load_access_config,
 )
 from .parser import parse_argument, parse_claim
+from .payment_webhook import (
+    EventApplicationError,
+    PaymentWebhookConfig,
+    WebhookConfigError,
+    WebhookPayloadError,
+    WebhookSignatureError,
+    apply_payment_event,
+    get_ledger,
+    load_payment_webhook_config,
+)
+from .payment_webhook_stripe import parse_stripe_event, verify_stripe_signature
 from .probes import generate_probes as gen_probes
 from .report import to_json_dict
 from .scoring import score_argument
@@ -164,6 +177,7 @@ def create_app(
     advisory_ledger: AdvisoryLedger | None = None,
     llm_client: LLMClient | None = None,
     outputer_cache: LLMResponseCache | None = None,
+    payment_webhook_config: PaymentWebhookConfig | None = None,
 ) -> Any:
     """Build the FastAPI app.
 
@@ -175,6 +189,11 @@ def create_app(
     fake client and a fresh cache without touching ``EBF_LLM_PROVIDER``
     or the module-level default cache. When both are omitted, the
     Nyahlothep outputer endpoint resolves them lazily per-request.
+
+    ``payment_webhook_config`` selects the payment-webhook configuration.
+    When omitted it is loaded from ``EBF_STRIPE_WEBHOOK_SECRET`` /
+    ``EBF_CUSTOMER_REGISTRY`` / ``EBF_PAYMENT_WEBHOOK_LEDGER`` env vars.
+    The default (unset) keeps the endpoint disabled and returning 503.
     """
     try:
         from fastapi import FastAPI, HTTPException, Request
@@ -210,6 +229,13 @@ def create_app(
         advisory_ledger if advisory_ledger is not None else get_advisory_ledger()
     )
     app.state.advisory_ledger = ledger
+
+    webhook_config: PaymentWebhookConfig = (
+        payment_webhook_config
+        if payment_webhook_config is not None
+        else load_payment_webhook_config()
+    )
+    app.state.payment_webhook_config = webhook_config
 
     @app.middleware("http")
     async def add_security_headers(request: Any, call_next: Any) -> Any:
@@ -289,6 +315,72 @@ def create_app(
             "plan": identity.plan,
             "fingerprint": identity.fingerprint,
         }
+
+    @app.post("/commercial/webhook/stripe")
+    async def commercial_webhook_stripe(request: Request) -> dict[str, Any]:
+        """Receive Stripe webhook events and apply them to the customer registry.
+
+        Visible-failure error mapping (no silent swallowing):
+
+        * ``503`` — webhook not configured (missing secret or registry)
+        * ``400`` — body is not valid JSON, or Stripe payload is malformed
+        * ``401`` — signature missing, expired, or invalid
+        * ``500`` — apply step hit a non-recoverable I/O / schema error
+
+        On success (including ``ignored``, ``duplicate``,
+        ``rejected_no_customer``) the response is ``200`` so Stripe does
+        not retry forever. The ledger entry records the actual outcome.
+        """
+        if not webhook_config.enabled:
+            raise HTTPException(
+                status_code=503,
+                detail=(
+                    "payment webhook not configured; set "
+                    "EBF_STRIPE_WEBHOOK_SECRET and EBF_CUSTOMER_REGISTRY to enable"
+                ),
+            )
+        assert webhook_config.stripe_secret is not None
+        assert webhook_config.registry_path is not None
+
+        raw_body = await request.body()
+        signature_header = request.headers.get("stripe-signature", "")
+        try:
+            verify_stripe_signature(
+                payload=raw_body,
+                signature_header=signature_header,
+                secret=webhook_config.stripe_secret,
+                tolerance_seconds=webhook_config.signature_tolerance_seconds,
+            )
+        except WebhookSignatureError as exc:
+            raise HTTPException(status_code=401, detail=str(exc))
+
+        try:
+            envelope = json.loads(raw_body.decode("utf-8"))
+        except (UnicodeDecodeError, json.JSONDecodeError) as exc:
+            raise HTTPException(
+                status_code=400, detail=f"webhook body is not valid JSON: {exc}"
+            )
+
+        try:
+            event = parse_stripe_event(envelope)
+        except WebhookPayloadError as exc:
+            raise HTTPException(status_code=400, detail=str(exc))
+
+        ledger_handle = get_ledger(webhook_config)
+        try:
+            application = apply_payment_event(
+                event,
+                registry_path=webhook_config.registry_path,
+                ledger=ledger_handle,
+            )
+        except EventApplicationError as exc:
+            # I/O or schema failure on the registry side: this is a 500
+            # because Stripe should retry once we fix it.
+            raise HTTPException(status_code=500, detail=str(exc))
+        except WebhookConfigError as exc:  # pragma: no cover - guarded above
+            raise HTTPException(status_code=503, detail=str(exc))
+
+        return application.to_dict()
 
     @app.get("/legal/terms", response_class=PlainTextResponse)
     def legal_terms() -> PlainTextResponse:
