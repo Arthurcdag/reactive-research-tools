@@ -58,6 +58,7 @@
     "projects/effective_boolean_filter/src/effective_boolean_filter/scope.py",
     "projects/effective_boolean_filter/src/effective_boolean_filter/scoring.py",
     "projects/effective_boolean_filter/src/effective_boolean_filter/storage.py",
+    "projects/effective_boolean_filter/src/effective_boolean_filter/tenant_db.py",
     "projects/effective_boolean_filter/src/effective_boolean_filter/trace_gate.py",
     "projects/effective_boolean_filter/tests/test_advisory.py",
     "projects/effective_boolean_filter/tests/test_advisory_ledger.py",
@@ -85,6 +86,11 @@
     "projects/effective_boolean_filter/tests/test_scope_shifts.py",
     "projects/effective_boolean_filter/tests/test_scoring_and_report.py",
     "projects/effective_boolean_filter/tests/test_storage.py",
+    "projects/effective_boolean_filter/tests/test_tenant_db.py",
+    "projects/effective_boolean_filter/tests/test_tenant_db_admin_cli.py",
+    "projects/effective_boolean_filter/tests/test_tenant_db_auth.py",
+    "projects/effective_boolean_filter/tests/test_tenant_db_storage.py",
+    "projects/effective_boolean_filter/tests/test_tenant_db_webhook.py",
     "projects/effective_boolean_filter/tests/test_trace_gate.py",
     "projects/xi_jensen_pipeline/README.md",
     "projects/xi_jensen_pipeline/docs/README_xi_jensen_certification_batch.txt",
@@ -156,6 +162,7 @@
     "requirements.txt",
     "scripts/customer_lifecycle.py",
     "scripts/customer_reconciliation.py",
-    "scripts/provision_customer_key.py"
+    "scripts/provision_customer_key.py",
+    "scripts/tenant_db_admin.py"
   ]
 }

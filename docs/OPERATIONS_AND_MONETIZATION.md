@@ -264,11 +264,84 @@ docker run --rm -p 8000:8000 \
   reactive-research-tools
 ```
 
+## Tenant Database
+
+For deployments past a handful of customers the env-var key list and the
+file ``ReportStore`` are not enough. The repo ships an additive SQLite
+tenant database that:
+
+- Stores **API keys** by SHA-256 lookup hash (fast per-request auth)
+  alongside the existing PBKDF2 display fingerprint (matches the JSON
+  registry byte-for-byte).
+- Stores **reports** per tenant with an optional ``expires_at`` so a
+  retention policy can be expressed at write time and reaped on a
+  schedule.
+- **Mirrors** payment-webhook applies into a ``tenants`` table, so plan
+  changes from Stripe land in both the JSON registry (authoritative for
+  the webhook path) and the DB (authoritative for auth and reports).
+
+Enable it:
+
+```text
+EBF_TENANT_DB=tenant:/data/tenant.sqlite
+```
+
+Either set `EBF_REPORT_STORE=tenant:/data/tenant.sqlite` to send reports
+through the same DB explicitly, or rely on the convenience default — when
+`EBF_TENANT_DB` is set and `EBF_REPORT_STORE` is unset, the report store
+defaults to the tenant DB so a single SQLite file holds both auth state
+and persisted reports.
+
+Auth resolution order at request time:
+
+1. `EBF_API_KEYS` env-var entries (fast plaintext compare).
+2. `EBF_TENANT_DB` lookup by SHA-256 token hash, only if (1) misses.
+
+Either path can hold the same key; env-keys remain a valid back-compat
+escape hatch for incident response.
+
+### Admin CLI
+
+```bash
+# Backfill from the existing JSON registry once
+python scripts/tenant_db_admin.py --db /data/tenant.sqlite \
+    sync-from-registry --registry /data/customer_registry.json
+
+# Provision a key (token printed once)
+python scripts/tenant_db_admin.py --db /data/tenant.sqlite \
+    keys provision --tenant-id customer-a
+
+# List keys for a tenant (tokens are never returned)
+python scripts/tenant_db_admin.py --db /data/tenant.sqlite \
+    keys list --tenant-id customer-a
+
+# Revoke a key
+python scripts/tenant_db_admin.py --db /data/tenant.sqlite \
+    keys revoke --key-id customer-a-12345678
+
+# Reap reports past their expires_at
+python scripts/tenant_db_admin.py --db /data/tenant.sqlite reports reap
+```
+
+Plaintext tokens **never** persist in the DB. The `keys provision`
+output is the only place the token is shown; capture it from the
+script's stdout and hand it to the customer / hosting secret manager.
+
+### Migration sketch
+
+1. Open the DB with `EBF_TENANT_DB=tenant:/data/tenant.sqlite` and run
+   `sync-from-registry` against the current `customer_registry.json`.
+2. For each customer, run `keys provision` to mint a DB-backed key, send
+   the customer the new token, retire the old `EBF_API_KEYS` entry.
+3. Switch `EBF_REPORT_STORE` to `tenant:/data/tenant.sqlite` to move
+   reports into the DB. Reports created via the file store remain in
+   their old directory; copy them across or accept the cutover gap.
+4. Keep the JSON registry around as a fallback until at least one
+   billing cycle has rolled past cleanly.
+
 ## Remaining Launch Work
 
 - Review final Terms of Service and Privacy Notice with counsel.
-- Choose payment processor and invoice/tax flow.
-- Add a key-provisioning database or admin UI once the JSON registry becomes
-  operationally awkward.
-- Decide retention period and deletion workflow for persisted reports.
+- Decide retention period and deletion workflow for persisted reports
+  (the DB schema's ``expires_at`` is ready; the policy is operator-side).
 - Put TLS, access logs, and backups under the hosting provider runbook.

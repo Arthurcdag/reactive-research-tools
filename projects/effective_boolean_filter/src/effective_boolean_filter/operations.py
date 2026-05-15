@@ -213,7 +213,28 @@ def is_public_path(path: str) -> bool:
     return path in PUBLIC_PATHS
 
 
-def authenticate_request(request: Any, config: AccessConfig) -> AuthResult:
+def authenticate_request(
+    request: Any,
+    config: AccessConfig,
+    *,
+    tenant_db: Any | None = None,
+) -> AuthResult:
+    """Resolve the caller's :class:`AccessIdentity` from request credentials.
+
+    Two key sources, checked in order:
+
+    1. ``config.api_keys`` (loaded from ``EBF_API_KEYS``) — fast
+       plaintext compare. This is the legacy path and stays the primary
+       store until operators migrate everyone to the DB.
+
+    2. ``tenant_db`` (when ``EBF_TENANT_DB`` is set) — SHA-256 lookup
+       hash, O(1) per-request. The DB key's ``plan`` field drives rate
+       limiting just like an env-var key would.
+
+    Either path can succeed; a hit in the env list short-circuits the
+    DB. A miss in both yields ``AuthResult(identity=None)`` and the
+    middleware decides whether that's a 401 or anonymous.
+    """
     token_sources: list[tuple[str, str]] = []
 
     authorization = request.headers.get("authorization", "")
@@ -240,6 +261,18 @@ def authenticate_request(request: Any, config: AccessConfig) -> AuthResult:
                         key_id=configured.key_id,
                         plan=configured.plan,
                         fingerprint=configured.fingerprint,
+                    ),
+                    bootstrap_token=token if source == "query" else None,
+                )
+
+        if tenant_db is not None:
+            row = tenant_db.find_active_key_by_token(token)
+            if row is not None:
+                return AuthResult(
+                    identity=AccessIdentity(
+                        key_id=row.key_id,
+                        plan=row.plan,
+                        fingerprint=row.token_display_fingerprint,
                     ),
                     bootstrap_token=token if source == "query" else None,
                 )

@@ -24,6 +24,7 @@ boot the API.
 from __future__ import annotations
 
 import json
+import os
 import secrets
 from typing import Any
 
@@ -59,7 +60,8 @@ from .payment_webhook_stripe import parse_stripe_event, verify_stripe_signature
 from .probes import generate_probes as gen_probes
 from .report import to_json_dict
 from .scoring import score_argument
-from .storage import ReportStore, get_store
+from .storage import ReportStore, TenantReportStore, get_store
+from .tenant_db import TenantDatabase, open_tenant_db_from_env
 from .advisory_ledger import (
     AdvisoryLedger,
     LedgerCorruptionError,
@@ -178,6 +180,7 @@ def create_app(
     llm_client: LLMClient | None = None,
     outputer_cache: LLMResponseCache | None = None,
     payment_webhook_config: PaymentWebhookConfig | None = None,
+    tenant_db: TenantDatabase | None = None,
 ) -> Any:
     """Build the FastAPI app.
 
@@ -194,6 +197,22 @@ def create_app(
     When omitted it is loaded from ``EBF_STRIPE_WEBHOOK_SECRET`` /
     ``EBF_CUSTOMER_REGISTRY`` / ``EBF_PAYMENT_WEBHOOK_LEDGER`` env vars.
     The default (unset) keeps the endpoint disabled and returning 503.
+
+    ``tenant_db`` opens the SQLite tenant database. When omitted it is
+    loaded from ``EBF_TENANT_DB``. The DB is consulted for:
+
+      * auth — keys not in ``EBF_API_KEYS`` are looked up by SHA-256
+        token hash in ``api_keys``;
+      * reports — when ``EBF_REPORT_STORE=tenant:...`` or the caller
+        passes a :class:`TenantReportStore`, all reports live in the
+        ``reports`` table;
+      * the payment webhook — every applied event upserts the tenant
+        row in the ``tenants`` table in addition to mutating the JSON
+        registry (the two stay in sync; either is enough to answer
+        "what plan is this tenant on?").
+
+    The default (unset) keeps the env-var keys, file/memory report
+    store, and JSON-only webhook path working unchanged.
     """
     try:
         from fastapi import FastAPI, HTTPException, Request
@@ -220,7 +239,27 @@ def create_app(
         openapi_url="/openapi.json" if access_config.docs_enabled else None,
     )
 
-    reports: ReportStore = store if store is not None else get_store()
+    # Resolve the tenant DB first so the report store can fall back to
+    # a tenant-backed one when no explicit store was provided and the
+    # env points at a SQLite path.
+    resolved_tenant_db: TenantDatabase | None = (
+        tenant_db if tenant_db is not None else open_tenant_db_from_env()
+    )
+    app.state.tenant_db = resolved_tenant_db
+
+    if store is not None:
+        reports: ReportStore = store
+    else:
+        env_spec = (os.environ.get("EBF_REPORT_STORE") or "").strip()
+        if env_spec:
+            reports = get_store(env_spec)
+        elif resolved_tenant_db is not None:
+            # Convenience: with a tenant DB but no explicit report store,
+            # send reports into that DB so a single SQLite file holds
+            # both auth state and persisted reports.
+            reports = TenantReportStore(resolved_tenant_db)
+        else:
+            reports = get_store()
     app.state.report_store = reports
     app.state.access_config = access_config
     rate_limiter = FixedWindowRateLimiter(access_config.plan_limits)
@@ -239,7 +278,9 @@ def create_app(
 
     @app.middleware("http")
     async def add_security_headers(request: Any, call_next: Any) -> Any:
-        auth = authenticate_request(request, access_config)
+        auth = authenticate_request(
+            request, access_config, tenant_db=resolved_tenant_db
+        )
         request.state.ebf_identity = auth.identity
 
         if access_config.require_api_key and auth.identity is None and not is_public_path(request.url.path):
@@ -379,6 +420,26 @@ def create_app(
             raise HTTPException(status_code=500, detail=str(exc))
         except WebhookConfigError as exc:  # pragma: no cover - guarded above
             raise HTTPException(status_code=503, detail=str(exc))
+
+        # Mirror the registry mutation into the tenant DB when one is
+        # configured. The DB is a derived view (the JSON registry stays
+        # authoritative for the webhook path) so a transient SQLite
+        # error must not fail the webhook: Stripe would retry and the
+        # JSON registry already reflects the truth. Operators can rerun
+        # ``tenant-db sync-from-registry`` (CLI) to backfill.
+        if application.applied and resolved_tenant_db is not None and application.after:
+            after = application.after
+            try:
+                resolved_tenant_db.upsert_tenant(
+                    application.customer_id,
+                    plan=str(after.get("plan") or "demo"),
+                    status=str(after.get("status") or "active"),
+                    payment_reference=str(after.get("payment_reference", "")),
+                    monthly_amount=str(after.get("monthly_amount", "")),
+                    currency=str(after.get("currency", "")),
+                )
+            except Exception:  # pragma: no cover - mirroring is best-effort
+                pass
 
         return application.to_dict()
 

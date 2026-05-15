@@ -112,6 +112,39 @@ The webhook registry and ledger should be backed up the same way:
 - `EBF_PAYMENT_WEBHOOK_LEDGER` — the dedupe + audit log. Loss of this
   file means the next Stripe re-delivery will re-apply already-applied
   events; restore it before re-enabling the endpoint after an incident.
+- `EBF_TENANT_DB` — the SQLite tenant database. Single file; back it up
+  with the same cadence as the report store. SQLite's `.backup` CLI is
+  the simplest live-backup mechanism; or shut the service for the
+  snapshot, copy the file, restart.
+
+## Tenant Database
+
+Open it from any operator shell:
+
+```bash
+sqlite3 /data/tenant.sqlite ".schema"
+sqlite3 /data/tenant.sqlite \
+    "SELECT tenant_id, plan, status FROM tenants ORDER BY tenant_id;"
+```
+
+Routine operations go through the admin CLI rather than raw SQL — see
+[OPERATIONS_AND_MONETIZATION.md](OPERATIONS_AND_MONETIZATION.md). The
+CLI is also the right place for incident response:
+
+```bash
+# Disable a key immediately (cheaper than redeploying EBF_API_KEYS)
+python scripts/tenant_db_admin.py --db /data/tenant.sqlite \
+    keys revoke --key-id customer-a-12345678
+
+# Audit what a customer is paying for and which keys are active
+python scripts/tenant_db_admin.py --db /data/tenant.sqlite \
+    keys list --tenant-id customer-a
+```
+
+Before revoking a production key, a Pulse Grab receipt should show
+`secret_vault_change_review` as supplied. Treat the DB file itself as a
+secret-grade artefact — its rows include token hashes and tenant
+payment references.
 
 ## Payment Webhook
 
