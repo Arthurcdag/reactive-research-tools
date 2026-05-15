@@ -53,7 +53,8 @@
 - [x] Docker/Render/GHCR deployment path
 - [x] Payment provider webhook provisioning (Stripe; signature-verified,
       idempotent ledger, registry mutation)
-- [ ] Tenant database for API keys and report retention
+- [x] Tenant database for API keys and report retention (SQLite; auth
+      fallback, `TenantReportStore`, webhook tenant mirror, admin CLI)
 
 ### Deferred
 - [ ] Full LLM advisory parser/probe wrapper provider integration

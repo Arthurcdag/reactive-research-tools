@@ -183,10 +183,26 @@ EBF_PAYMENT_WEBHOOK_LEDGER=/data/payment_webhook_ledger.jsonl
 
 The endpoint verifies the `Stripe-Signature` header, dedupes by event id
 via the ledger, and updates the customer registry in place. Without those
-env vars it returns `503`. See
-[`docs/OPERATIONS_AND_MONETIZATION.md`](docs/OPERATIONS_AND_MONETIZATION.md)
+env vars it returns `503`.
+
+For deployments past a handful of customers, opt into the SQLite tenant
+database:
+
+```bash
+EBF_TENANT_DB=tenant:/data/tenant.sqlite
+```
+
+That gives you DB-backed API keys (fast SHA-256 lookup, complementary to
+the env-var `EBF_API_KEYS` list) and report storage with optional
+per-row expiry. The payment webhook mirrors every applied event into the
+DB's `tenants` table so plan/status changes from Stripe are queryable
+without re-reading the JSON registry. Admin via
+`scripts/tenant_db_admin.py` — list tenants, mint keys (token shown
+once), revoke keys, reap expired reports.
+
+See [`docs/OPERATIONS_AND_MONETIZATION.md`](docs/OPERATIONS_AND_MONETIZATION.md)
 for the second-company separation rule, pricing tiers, Stripe event
-mapping, and the remaining legal items.
+mapping, tenant-DB migration sketch, and the remaining legal items.
 
 Run the Xi–Jensen dashboard if the corresponding generated scripts and dependencies are present:
 

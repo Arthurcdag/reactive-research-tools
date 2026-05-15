@@ -1,19 +1,26 @@
 """Report storage backends.
 
-The API stores `EvaluationReport` JSON dicts keyed by report id. Two backends:
+The API stores `EvaluationReport` JSON dicts keyed by report id. Three backends:
 
 * :class:`InMemoryStore` - default, ephemeral, loses data on restart.
 * :class:`FileStore`     - one ``<report_id>.json`` file under a directory.
+* :class:`TenantReportStore` - rows in the SQLite tenant database. Supports
+  per-tenant scoping and a retention window via ``expires_at``.
 
 Selection at runtime via the ``EBF_REPORT_STORE`` env var:
 
 * unset / ``memory``         - :class:`InMemoryStore`
 * ``file:/path/to/dir``      - :class:`FileStore` rooted at the given path
+* ``tenant:/path/to/db``     - :class:`TenantReportStore` against a shared
+                               SQLite tenant database. The same path may
+                               also be referenced by ``EBF_TENANT_DB``;
+                               specifying both is allowed and makes the
+                               auth and report paths share one database.
 
 Storage instances are safe for use across requests within one process. The
 file backend uses an atomic ``os.replace`` write so concurrent writers do
-not produce half-written files; for cross-process locking, fronting it
-with a real database is the right move.
+not produce half-written files; the tenant backend serialises through
+SQLite. For cross-process locking, the tenant backend is the right pick.
 """
 from __future__ import annotations
 
@@ -129,11 +136,67 @@ class FileStore:
             return False
 
 
+class TenantReportStore:
+    """Report storage backed by the SQLite tenant database.
+
+    Wraps a :class:`tenant_db.TenantDatabase`. The store itself is
+    tenant-agnostic at the ``ReportStore`` protocol boundary (the API
+    middleware passes a per-request tenant when it has one), so the
+    contract stays compatible with the older two backends.
+
+    ``default_tenant_id`` is attached to writes that arrive without an
+    explicit tenant — useful for tests and for the local-demo flow
+    where every report goes to the same tenant slug.
+    """
+
+    def __init__(
+        self,
+        db: "tenant_db.TenantDatabase",
+        *,
+        default_tenant_id: str | None = None,
+    ) -> None:
+        # imported lazily inside __init__ to avoid a top-level cycle
+        # with tenant_db (which doesn't import storage).
+        self._db = db
+        self._default_tenant_id = default_tenant_id
+
+    def put(
+        self,
+        report_id: str,
+        report: dict[str, Any],
+        *,
+        tenant_id: str | None = None,
+        expires_at: str | None = None,
+    ) -> None:
+        _check_id(report_id)
+        self._db.put_report(
+            report_id,
+            report,
+            tenant_id=tenant_id or self._default_tenant_id,
+            expires_at=expires_at,
+        )
+
+    def get(self, report_id: str) -> dict[str, Any] | None:
+        _check_id(report_id)
+        return self._db.get_report(report_id)
+
+    def list_ids(self) -> list[str]:
+        return sorted(self._db.list_report_ids())
+
+    def __contains__(self, report_id: str) -> bool:
+        try:
+            _check_id(report_id)
+        except ValueError:
+            return False
+        return self._db.get_report(report_id) is not None
+
+
 def get_store(spec: str | None = None) -> ReportStore:
     """Resolve a store from a spec string.
 
-    ``None`` / ``""`` / ``"memory"`` -> :class:`InMemoryStore`
-    ``"file:/some/dir"``             -> :class:`FileStore`
+    ``None`` / ``""`` / ``"memory"``  -> :class:`InMemoryStore`
+    ``"file:/some/dir"``              -> :class:`FileStore`
+    ``"tenant:/some/db.sqlite"``      -> :class:`TenantReportStore`
 
     Falls back to the ``EBF_REPORT_STORE`` env var when ``spec`` is None.
     """
@@ -147,6 +210,18 @@ def get_store(spec: str | None = None) -> ReportStore:
         if not path:
             raise ValueError("file: store spec requires a path: 'file:/path/to/dir'")
         return FileStore(path)
+    if spec.startswith("tenant:"):
+        path = spec[len("tenant:"):]
+        if not path:
+            raise ValueError(
+                "tenant: store spec requires a SQLite path: "
+                "'tenant:/path/to/db.sqlite'"
+            )
+        # Imported here so the storage module stays usable when the
+        # tenant_db extras are not needed.
+        from . import tenant_db
+
+        return TenantReportStore(tenant_db.TenantDatabase(path))
     raise ValueError(f"unknown report store spec: {spec!r}")
 
 
