@@ -76,15 +76,85 @@ EBF_PLAN_LIMITS=starter=120/minute,pro=600/minute,enterprise=1800/minute
 
 ## Billing Flow
 
-Billing is intentionally external in this version.
+Billing is external to this repo: the payment processor charges the customer,
+and a signed webhook tells this service to update the local customer registry.
 
-1. Customer pays through Stripe, Mercado Pago, invoice, or another processor.
-2. Operator provisions an API key with the paid plan.
-3. Customer receives the dashboard URL and API key.
-4. Failed payment or cancellation means the key is removed or rotated.
+### Stripe webhook (automatic)
 
-Do not put payment secrets in this repo. Store processor keys only in the
-hosting provider secret manager.
+When `EBF_STRIPE_WEBHOOK_SECRET` and `EBF_CUSTOMER_REGISTRY` are both set the
+service exposes a signed webhook endpoint:
+
+```text
+POST /commercial/webhook/stripe
+```
+
+What it does:
+
+1. Verifies the `Stripe-Signature` header against the raw body using
+   HMAC-SHA256. Rejects with `401` on mismatch or expired timestamp
+   (default tolerance 300 s, overridable via
+   `EBF_WEBHOOK_SIGNATURE_TOLERANCE_SECONDS`).
+2. Parses the Stripe event. The Stripe subscription (or Checkout Session)
+   **must** have `metadata.customer_id` set to the local registry slug.
+   `metadata.plan` overrides the price `lookup_key` for plan derivation.
+3. Maps the native Stripe event type to a provider-neutral action:
+   - `checkout.session.completed`, `customer.subscription.created` →
+     status = `active`, plan from metadata/lookup_key
+   - `customer.subscription.updated` → plan and/or status change
+     (`past_due` / `unpaid` / `incomplete_expired` → `suspended`)
+   - `customer.subscription.deleted` → status = `canceled`
+   - `invoice.payment_failed` → status = `suspended`
+   - `invoice.payment_succeeded` → revive only if currently `suspended`
+   - any other native type → recorded as `ignored` (200 OK so Stripe
+     stops retrying)
+4. Calls into the same `rtt_customer_registry_v1` JSON file that the
+   manual `customer_lifecycle.py` script writes. The two paths coexist —
+   the script remains usable as an operator override.
+5. Records every outcome (applied, duplicate, ignored, rejected) in the
+   ledger at `EBF_PAYMENT_WEBHOOK_LEDGER` for reconciliation.
+
+Configure the service:
+
+```bash
+EBF_STRIPE_WEBHOOK_SECRET=whsec_...
+EBF_CUSTOMER_REGISTRY=/data/customer_registry.json
+EBF_PAYMENT_WEBHOOK_LEDGER=/data/payment_webhook_ledger.jsonl
+# Optional, defaults to 300:
+# EBF_WEBHOOK_SIGNATURE_TOLERANCE_SECONDS=300
+```
+
+In the Stripe dashboard, configure the webhook endpoint to send these
+events at minimum:
+
+- `checkout.session.completed`
+- `customer.subscription.created`
+- `customer.subscription.updated`
+- `customer.subscription.deleted`
+- `invoice.payment_failed`
+- `invoice.payment_succeeded`
+
+On every Stripe subscription you create (manually or via Checkout) attach
+metadata `{customer_id: <local-slug>, plan: <demo|starter|pro|enterprise>}`.
+Setting the price's `lookup_key` to the same plan slug is sufficient
+if you'd rather not duplicate the plan into metadata.
+
+The webhook **does not** rotate API keys or write `EBF_API_KEYS`. After a
+plan change lands in the registry, the operator still updates the hosting
+secret manager and redeploys. The webhook removes the "operator
+mis-types a plan" failure mode without removing the operator approval
+for key issuance.
+
+Idempotency is per `event.id`. A re-delivery of the same Stripe event
+returns `200` with `applied: false, action: "duplicate"` and does not
+mutate the registry a second time.
+
+Do not put Stripe API secrets or webhook secrets in this repo. Store
+them only in the hosting provider secret manager.
+
+### Manual (no webhook)
+
+If the webhook is disabled or for fallback during incidents, the manual
+provisioning and lifecycle scripts remain the source of truth.
 
 Provision a key:
 

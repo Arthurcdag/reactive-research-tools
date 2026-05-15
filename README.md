@@ -166,15 +166,27 @@ https://your-domain/?access_key=<long-random-secret>
 Commercial endpoints:
 
 ```text
-GET /commercial/plans
-GET /commercial/status
-GET /legal/terms
-GET /legal/privacy
+GET  /commercial/plans
+GET  /commercial/status
+POST /commercial/webhook/stripe
+GET  /legal/terms
+GET  /legal/privacy
 ```
 
-See [`docs/OPERATIONS_AND_MONETIZATION.md`](docs/OPERATIONS_AND_MONETIZATION.md)
-for the second-company separation rule, pricing tiers, deployment process, and
-remaining legal/payment work.
+Enable the Stripe webhook with:
+
+```bash
+EBF_STRIPE_WEBHOOK_SECRET=whsec_... \
+EBF_CUSTOMER_REGISTRY=/data/customer_registry.json \
+EBF_PAYMENT_WEBHOOK_LEDGER=/data/payment_webhook_ledger.jsonl
+```
+
+The endpoint verifies the `Stripe-Signature` header, dedupes by event id
+via the ledger, and updates the customer registry in place. Without those
+env vars it returns `503`. See
+[`docs/OPERATIONS_AND_MONETIZATION.md`](docs/OPERATIONS_AND_MONETIZATION.md)
+for the second-company separation rule, pricing tiers, Stripe event
+mapping, and the remaining legal items.
 
 Run the Xi–Jensen dashboard if the corresponding generated scripts and dependencies are present:
 

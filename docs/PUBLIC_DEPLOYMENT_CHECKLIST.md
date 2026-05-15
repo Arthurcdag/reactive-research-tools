@@ -27,13 +27,18 @@ Implemented:
 - Docs/OpenAPI disabled by default in public mode.
 - In-memory per-key/per-plan fixed-window rate limits.
 - Public commercial/legal metadata endpoints.
+- **Signed Stripe payment webhook** at `POST /commercial/webhook/stripe`
+  with HMAC-SHA256 signature verification, replay-tolerance window,
+  per-`event.id` idempotency ledger, and provider-neutral apply step
+  against the customer registry. See [Operations and Monetization](OPERATIONS_AND_MONETIZATION.md).
 - Dockerfile, Render blueprint, pinned `requirements-lock.txt`, and GHCR
   container publishing workflow.
 
 Still external to this codebase:
 
 - TLS termination and HSTS at the host/proxy.
-- Payment processor checkout and tax/invoicing flow.
+- Stripe account, Checkout Session creation, and tax/invoicing flow
+  (the webhook handles plan changes once the customer is in Stripe).
 - Final Terms/Privacy review by counsel.
 - Backup, deletion, and retention operations for each tenant.
 

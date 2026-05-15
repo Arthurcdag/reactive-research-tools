@@ -51,7 +51,8 @@
 - [x] Commercial plan/status endpoints
 - [x] Terms/privacy draft endpoints
 - [x] Docker/Render/GHCR deployment path
-- [ ] Payment provider webhook provisioning
+- [x] Payment provider webhook provisioning (Stripe; signature-verified,
+      idempotent ledger, registry mutation)
 - [ ] Tenant database for API keys and report retention
 
 ### Deferred
