@@ -1,315 +1,70 @@
 # Developer Next Steps
 
-This repo is now on `main` after PR #2. The Effective Boolean Filter MVP has a
-CLI, FastAPI surface, browser dashboard, benchmark tests, and passing GitHub
-Actions.
-
-## Current Verified State
-
-- `main` includes merge commit `7fb4a6d`.
-- Dashboard feature commit: `10fbd1f`.
-- CI dependency fix: `093efef`.
-- GitHub Actions `Python tests` passes on `main`.
-- Local verification command:
-
-```bash
-python -m pytest projects/effective_boolean_filter/tests/
-```
-
-Expected result: all tests pass.
+Forward-looking work only. Shipped history lives in
+[`../CHANGELOG.md`](../CHANGELOG.md); sprint status lives in
+[`../PROJECT_BOARD.md`](../PROJECT_BOARD.md).
 
 ## Local Setup
 
 ```bash
 python -m venv .venv
-.venv\Scripts\activate
+. .venv/bin/activate            # Windows: .venv\Scripts\activate
 pip install -r requirements.txt
-python -m pytest projects/effective_boolean_filter/tests/
+python -m pytest                # runs both project test trees
 ```
 
 Run the dashboard locally:
 
 ```bash
-python -m uvicorn effective_boolean_filter.api:app ^
-  --app-dir projects/effective_boolean_filter/src ^
-  --host 127.0.0.1 ^
+python -m uvicorn effective_boolean_filter.api:app \
+  --app-dir projects/effective_boolean_filter/src \
+  --host 127.0.0.1 \
   --port 8000
 ```
 
-Open:
+Open `http://127.0.0.1:8000/`.
 
-```text
-http://127.0.0.1:8000/
-```
-
-Keep the default localhost binding unless the API is protected with auth and
-rate limiting.
-
-## Safety Notes
+## Safety Notes (carry-over invariants)
 
 - Treat all evaluated claims and arguments as untrusted input.
-- The dashboard must render evaluated content as text, never HTML.
-- Keep the restrictive CSP on `GET /`.
-- Do not expose the FastAPI app with `--host 0.0.0.0` until these are added:
-  authentication, request rate limits, request body limits at the server/proxy
-  layer, and deployment logging rules that avoid storing sensitive user inputs.
-- The deterministic engine must remain authoritative. Any LLM feature should be
-  advisory only and validated through structured JSON before entering reports.
+- The dashboard must render evaluated content as text, never HTML
+  (`textContent` only, no inline handlers, CSP unchanged) — this is a CI
+  invariant.
+- The deterministic engine must remain the only verdict source. Any LLM
+  feature is advisory only and must pass structured JSON validation before
+  entering reports.
+- Visible-failure policy: typed exceptions map to distinct HTTP statuses, no
+  silent fallback.
+- Do not expose the API beyond `--host 127.0.0.1` without `EBF_PUBLIC_MODE`
+  auth, rate limiting, and a body-size limit in front of it. See
+  [`PUBLIC_DEPLOYMENT_CHECKLIST.md`](PUBLIC_DEPLOYMENT_CHECKLIST.md).
 
-## Immediate Next Tasks
+## Open Work
 
-1. ~~Add durable report storage.~~ ✅ Shipped on branch `codex/report-storage`.
-   - `storage.py` provides `InMemoryStore` (default) and `FileStore`.
-   - Selected via the `EBF_REPORT_STORE` env var: unset/`memory` or
-     `file:/path/to/dir`.
-   - `create_app(store=...)` lets tests inject a backend explicitly.
-   - Round-trip persistence across app recreation is covered in
-     `tests/test_api.py::test_file_store_persists_across_app_recreation`.
+### Effective Boolean Filter
 
-2. ~~Improve dashboard usability without adding a frontend build step.~~ ✅ Shipped on branch `codex/dashboard-ux`.
-   - Replaced the single "Clean case" button with a row of four labelled
-     sample-preset buttons (clean double negation, epistemic shift, scope
-     shift, contained contradiction). Each writes its claim/argument/
-     context/strictness into the form via `addEventListener` (no inline
-     handlers, CSP-safe).
-   - Added a compact score-vector table that renders all eight fields
-     with value, progress bar, and per-field reason strings on every
-     evaluation.
-   - Added a "Copy JSON" button that uses `navigator.clipboard.writeText`
-     gated behind the click handler (so clipboard access only occurs on
-     explicit user activation), with a `role="status"` `aria-live="polite"`
-     feedback span that shows "Copied to clipboard." or an error message
-     and clears after 2.5s. Refuses to copy when no report has been run.
-   - Regression tests in `tests/test_api.py` cover the four preset
-     buttons, all eight score-vector fields in the rendered HTML, the
-     copy-JSON button + feedback element + Clipboard API usage, and the
-     no-inline-event-handler invariant.
+- **Payment provider webhook provisioning.** Wire a payment webhook into the
+  public-mode customer lifecycle so plan changes are not manual.
+- **Tenant database for API keys and report retention.** Replace the env-var
+  key list and file report store with a real per-tenant backend.
+- **Full LLM advisory parser/probe wrapper provider integration** (deferred).
+  Currently only the inputer/outputer paths use a live provider.
+- **Engine coverage parity.** The wrapper has grown faster than the engine;
+  keep new adversarial benchmark cases (scope-shift bridges, contradiction
+  containment edges) landing alongside any wrapper PR.
 
-3. ~~Add API error tests.~~ ✅ Shipped on branch `codex/api-error-tests`.
-   - `tests/test_api_validation.py` (52 tests) covers: over-length
-     claim/argument/context/task/probe-answer bodies, the strictness
-     whitelist (case-sensitive, with wrong-type rejection), malformed
-     probe answers (missing fields, wrong types, empty question,
-     non-list `answers`), generic missing/non-JSON/wrong-type bodies,
-     CSP regression (all 7 directives + per-response nonce + cache),
-     extra security headers, middleware coverage on non-dashboard
-     endpoints, plus 404/405 surface.
+### Xi–Jensen Pipeline
 
-4. ~~Add a public-sharing deployment checklist.~~ ✅ Shipped on branch `codex/deploy-checklist`.
-   - See [`docs/PUBLIC_DEPLOYMENT_CHECKLIST.md`](PUBLIC_DEPLOYMENT_CHECKLIST.md).
-   - Covers auth, rate limiting, HTTPS, CORS, logging, data retention,
-     network exposure, dependency hygiene, engine-integrity carry-over
-     from the existing safety notes, pre-launch verification steps,
-     and an explicit "what's safe today" section that draws the line
-     at local-only / SSH-forwarded use vs. public binding.
+- **Batch planner**, **residual-gated certification**, and a
+  **publication-grade audit report** — the three open items in the
+  certification loop on `PROJECT_BOARD.md`.
 
-5. ~~Address GitHub Actions maintenance.~~ ✅ Shipped on branch `codex/ci-actions-bump`.
-   - Bumped `actions/checkout@v4` → `@v6` and `actions/setup-python@v5` → `@v6`.
-   - Both v6 releases run on Node 24, so the Node 20 deprecation warning
-     no longer fires. Requires GitHub-hosted runner 2.327.1+ (ubuntu-latest
-     is kept current automatically).
-   - No workflow logic changed; the `pytest` command and Python version
-     pin are untouched.
+## Working Agreement
 
-6. ~~Add the Azatoth/Nyahlothep advisory wrapper V0.~~ Shipped on branch
-   `codex/advisory-wrapper-v0`.
-   - `advisory.py` provides a deterministic contract: Azatoth generates a
-     bounded candidate swarm, the filter evaluates each candidate, and
-     Nyahlothep selects from filter reports only.
-   - Adds `POST /advisory/azatoth`, `POST /advisory/nyahlothep`, and
-     `POST /advisory/run`.
-   - The dashboard has a compact wrapper panel with candidate ranking,
-     selected candidate display, and a "Load selected" action.
-   - No provider keys, no network calls, and no live LLM dependency are part
-     of this V0.
-   - V1 should build the Nyahlothep/outputer path first: output failures are
-     visible, and the outputer needs the same API client, prompt caching, and
-     JSON validation plumbing that Azatoth/inputer will reuse later.
-
-7. ~~Build Nyahlothep outputer V1.~~ ✅ Shipped on branch
-   `codex/nyahlothep-outputer-v1`.
-   - `llm_client.py` defines the `LLMClient` interface, ships
-     `DeterministicFakeClient` as the default, and reserves the provider
-     adapter slot behind `EBF_LLM_PROVIDER`. Selecting any non-fake value
-     raises `DisabledLLMClientError` so callers see a visible failure
-     rather than a silent stub.
-   - `llm_prompts.py` carries the versioned `nyahlothep_outputer_v1`
-     system prompt and a `Style` enum (`brief` / `technical` /
-     `replication`).
-   - `llm_cache.py` provides an in-process cache keyed by
-     `(prompt_version, provider, model, report_hash, recipe_hash, style)`
-     and stores **validated** output only.
-   - `llm_outputer.py` orchestrates generate-validate-cache. Validation
-     is strict: missing/extra/wrong-type fields, JSON parse errors, and
-     `source_report_id` mismatch all raise `OutputerValidationError`.
-     The outputer never mutates the input `selected_report` or
-     `replication_recipe`.
-   - `POST /advisory/nyahlothep/output` maps each typed exception to a
-     visible HTTP status: `OutputerValidationError -> 422`,
-     `LLMProviderUnavailable -> 502`, `LLMTimeoutError -> 504`,
-     `DisabledLLMClientError -> 503`. There is no silent fallback.
-   - Dashboard adds a Nyahlothep narration panel with a style select,
-     Generate button gated on a successful wrapper run, status badge
-     (ready / generating / cached / error), and a result block that
-     renders summary / why_selected / replication_steps / caveats /
-     meta-fields entirely via `textContent` (no `innerHTML`, no inline
-     handlers, CSP unchanged).
-   - Tests: `tests/test_llm_outputer.py` (25 unit tests) and
-     `tests/test_api_nyahlothep_output.py` (13 endpoint tests) cover
-     happy path, all three styles, cache hit, invalid JSON, missing
-     fields, unexpected fields, wrong types, empty steps, source-id
-     mismatch, disabled provider, and the no-mutation invariant.
-     `tests/test_api.py` adds two dashboard-hookup regressions.
-
-8. ~~Build Azatoth inputer V1 (bounded monkey/typewriter swarm).~~ ✅
-   Shipped on branch `codex/azatoth-inputer-v1`.
-   - `llm_prompts.py`: adds `INPUTER_PROMPT_VERSION =
-     "azatoth_inputer_v1"`, `INPUTER_SYSTEM_PROMPT`, and
-     `render_inputer_prompt(seed, context, count, pool_size, strictness)`.
-   - `llm_cache.py`: adds `InputerCacheKey` with a **separate shape**
-     (`prompt_version, provider, model, seed_hash, context_hash,
-     strictness, count, pool_size`) plus an `inputer/` namespace prefix
-     so seed data is never confused with a report key.
-   - `llm_client.py`: extends `DeterministicFakeClient.generate` so
-     `prompt_version="azatoth_inputer_v1"` returns a deterministic
-     monkey/typewriter pool of up to 80 unique candidates from 16
-     rhetorical templates × 5 mutation cycles.
-   - `llm_inputer.py`: orchestrates generate → strict-validate →
-     dedupe (case-folded, whitespace-collapsed) → slice to exactly
-     `count`. `count ∈ [1,20]`; `pool_size` defaults to
-     `min(max(count*4, 16), 80)` and is hard-capped at 80. Insufficient
-     unique candidates raise `InputerValidationError` visibly — there
-     is no silent shrink or pad. The cache stores **validated**
-     candidate output only.
-   - `POST /advisory/azatoth/input`: returns `{mode,
-     provider, model, cache_key, cached, pool_size, valid_count,
-     deduped_count, azatoth_candidates}`.
-   - `POST /advisory/run`: extended with optional `source ∈
-     {deterministic, inputer}` and optional `pool_size`. Default stays
-     `deterministic` for backwards compatibility. The `inputer` path
-     generates candidates → existing filter evaluates them →
-     Nyahlothep selects from filter reports. Response gains
-     `azatoth_source` and (when `source=inputer`) an
-     `azatoth_inputer` block with the same status fields the
-     `/input` endpoint returns.
-   - The deterministic engine remains the only verdict source; the
-     inputer never alters polarity, scores, issues, or selection.
-     `/advisory/azatoth` (deterministic-only) is unchanged.
-   - Dashboard: adds an "Azatoth source" select inside the wrapper
-     panel and an inputer-status block (provider, model, cached,
-     pool size, valid, deduped, returned) that fills via
-     `textContent` only. CSP, no-inline-handler invariant, and all
-     security headers unchanged.
-   - Tests: `tests/test_llm_inputer.py` (40 unit tests) and
-     `tests/test_api_azatoth_input.py` (26 endpoint tests) cover
-     happy path, count and pool bounds, default-pool rule, all
-     three styles of validation failure (invalid JSON, missing
-     fields, unexpected extras, wrong types, over-length values,
-     bad strictness), duplicate-only pool, insufficient unique
-     candidates, cache hit and namespace isolation from outputer,
-     deep-copy cache safety, no-input-mutation, the disabled
-     provider path returning 503, the `source=inputer` path on
-     `/advisory/run`, and the backwards-compat default. Two new
-     dashboard regressions in `tests/test_api.py` lock in the new
-     fragments and the textContent invariant.
-
-9. ~~Build Anthropic provider adapter V1.~~ Implemented in this change.
-   - `llm_client.py` now supports `EBF_LLM_PROVIDER=anthropic` using the
-     existing `httpx` dependency and no provider SDK.
-   - Required config: `ANTHROPIC_API_KEY` and `EBF_LLM_MODEL`. Optional
-     config: `EBF_ANTHROPIC_VERSION` (default `2023-06-01`),
-     `EBF_LLM_BASE_URL` (default `https://api.anthropic.com`), and
-     `EBF_LLM_MAX_TOKENS` (default `4096`).
-   - The adapter sends non-streaming Messages API requests with
-     `temperature: 0`, system prompt, and one user JSON-data message.
-   - It joins returned text blocks into `LLMResponse.raw_text`; inputer and
-     outputer JSON parsing/schema validation remain outside the provider.
-   - Missing config raises `DisabledLLMClientError`, HTTP/network/bad
-     response failures raise `LLMProviderUnavailable`, and timeouts raise
-     `LLMTimeoutError`.
-   - Tests use injected HTTP clients only; no real network calls or keys are
-     required.
-
-9. ~~Add advisory trace + gate lite.~~ Implemented in this change.
-   - `trace_gate.py` provides deterministic `PipelineTrace` stages and
-     promotion/reality-gate receipts for advisory provenance.
-   - `/advisory/run` and `/advisory/nyahlothep` keep their existing
-     response fields and add `trace` plus `gates` metadata.
-   - The dashboard shows compact trace/gate status downstream of
-     selection; it does not influence the verdict.
-   - This is infrastructure for Azatoth inputer V1, not live provider work.
-
-10. ~~Add advisory ledger + full replay.~~ Implemented in this change.
-   - `advisory_ledger.py` provides `NullAdvisoryLedger` by default and
-     `FileAdvisoryLedger` behind `EBF_ADVISORY_LEDGER=file:/path/to/log.jsonl`.
-   - `/advisory/run` and `/advisory/nyahlothep` append full local snapshots
-     only after selected report storage succeeds; responses gain additive
-     `ledger` metadata.
-   - Adds `GET /advisory/ledger`, `GET /advisory/ledger/{entry_id}`, and
-     `POST /advisory/ledger/{entry_id}/replay`.
-   - Replay verifies the append-only hash chain, rebuilds candidates from the
-     stored snapshot, re-runs deterministic evaluation/selection, and reports
-     mismatches without calling a live provider.
-   - Dashboard adds a compact ledger/replay strip using `textContent` only;
-     CSP and no-inline-handler constraints remain unchanged.
-
-11. ~~Add advisory provider status/preflight.~~ Implemented in this change.
-   - `llm_client.provider_status()` reports fake/Anthropic config readiness
-     without constructing a provider request or exposing credential values.
-   - Adds `GET /advisory/provider/status` for dashboard/local checks.
-   - Dashboard adds a compact provider-status strip with a manual refresh
-     button and initial load check, rendered with `textContent` only.
-   - Tests cover fake default, valid Anthropic config, malformed Anthropic
-     config, unsupported providers, the API endpoint, and dashboard hooks.
-
-12. ~~Bring `xi_jensen_pipeline/` under CI smoke coverage.~~ Implemented
-    in this change (branch `codex/xi-jensen-ci-smoke`).
-   - Adds `projects/xi_jensen_pipeline/tests/` with three files:
-     `test_xi_jensen_units.py` (pure-function unit tests for
-     `threshold_degree`, `c_nd`, and `auto_max_gamma_index`),
-     `test_xi_jensen_cli_smoke.py` (subprocess `--help` checks for
-     `xi_jensen_frontier_dashboard.py` and
-     `xi_jensen_certification_status.py`), and
-     `test_xi_jensen_sample_outputs.py` (header + locked-row regression
-     against the committed dashboard smoke CSVs).
-   - Adds a local `conftest.py` that prepends the scripts directory to
-     `sys.path` so the top-level inter-script imports (e.g.
-     `import xi_jensen_fast as F`) resolve under pytest. The injection
-     is scoped to this directory's conftest only.
-   - Extends `pyproject.toml` `testpaths` so `python -m pytest` (no
-     args) runs both the effective_boolean_filter and xi_jensen_pipeline
-     trees.
-   - Extends `.github/workflows/python-tests.yml` to invoke
-     `python -m pytest`, picking up both trees from `pyproject.toml`.
-   - Targeted commands remain available:
-     - `python -m pytest projects/effective_boolean_filter/tests/`
-     - `python -m pytest projects/xi_jensen_pipeline/tests/`
-   - CI intentionally avoids the expensive Xi-Jensen workloads
-     (certification campaigns, deepcheck batches, contour stress
-     harnesses, high-precision verification, publication-grade audits).
-     Those remain manual and out of CI scope.
-
-## Suggested Work Order
-
-1. Create a new branch from `main`.
-
-```bash
-git switch main
-git pull --ff-only origin main
-git switch -c codex/report-storage
-```
-
-2. Implement one task per PR.
-3. Run tests locally before pushing.
-4. Push and open a PR.
-5. Confirm GitHub Actions before merging.
-
-## Acceptance Criteria For The Next PR
-
-- `python -m pytest` passes locally (covers both
-  `projects/effective_boolean_filter/tests/` and
-  `projects/xi_jensen_pipeline/tests/`).
-- GitHub Actions passes on the PR.
-- `MANIFEST.json` includes any new tracked files.
-- README or project docs mention any new user-facing command or endpoint.
-- No public network exposure is introduced without auth and rate limits.
+1. Branch from `main`, one logical change per PR.
+2. `python -m pytest` passes locally before pushing.
+3. `MANIFEST.json` includes any new tracked files.
+4. README / project docs mention any new user-facing command or endpoint, and
+   the README "Public surface" table is updated for any endpoint change.
+5. No public network exposure without auth and rate limits.
+6. Move shipped items into `CHANGELOG.md`; keep this file forward-looking.

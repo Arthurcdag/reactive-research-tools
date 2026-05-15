@@ -6,3 +6,10 @@ testpaths = [
   "projects/effective_boolean_filter/tests",
   "projects/xi_jensen_pipeline/tests"
 ]
+# Live provider tests are opt-in: they hit a real LLM API and need a key.
+# The default run (and CI) excludes them. Run them explicitly with:
+#   pytest -m live
+addopts = "-m 'not live'"
+markers = [
+  "live: opt-in test that calls a real external provider (needs ANTHROPIC_API_KEY); excluded from the default run",
+]

@@ -38,6 +38,7 @@ from .dashboard import render_dashboard_html
 from .operations import (
     FixedWindowRateLimiter,
     authenticate_request,
+    content_length_over_limit,
     identity_key,
     is_public_path,
     load_access_config,
@@ -213,41 +214,60 @@ def create_app(
 
     @app.middleware("http")
     async def add_security_headers(request: Any, call_next: Any) -> Any:
-        auth = authenticate_request(request, access_config)
-        request.state.ebf_identity = auth.identity
+        # ebf_identity is read by handlers (e.g. /commercial/status); set a
+        # default before any short-circuit so it is always present.
+        request.state.ebf_identity = None
+        auth = None
 
-        if access_config.require_api_key and auth.identity is None and not is_public_path(request.url.path):
+        over_limit = content_length_over_limit(request, access_config.max_body_bytes)
+        if over_limit is not None:
+            # Reject before auth/rate-limit/Pydantic so an oversized payload
+            # is never buffered into the engine.
             response = JSONResponse(
-                {"detail": "API key required"},
-                status_code=401,
-                headers={"WWW-Authenticate": 'Bearer realm="effective-boolean-filter"'},
+                {
+                    "detail": (
+                        f"request body too large: {over_limit} bytes exceeds the "
+                        f"{access_config.max_body_bytes}-byte limit"
+                    )
+                },
+                status_code=413,
             )
         else:
-            decision = None
-            if access_config.rate_limit_enabled and not is_public_path(request.url.path):
-                key, plan = identity_key(request, auth.identity)
-                decision = rate_limiter.check(key, plan)
-                if not decision.allowed:
-                    response = JSONResponse(
-                        {"detail": "rate limit exceeded"},
-                        status_code=429,
-                        headers=decision.headers(),
-                    )
+            auth = authenticate_request(request, access_config)
+            request.state.ebf_identity = auth.identity
+
+            if access_config.require_api_key and auth.identity is None and not is_public_path(request.url.path):
+                response = JSONResponse(
+                    {"detail": "API key required"},
+                    status_code=401,
+                    headers={"WWW-Authenticate": 'Bearer realm="effective-boolean-filter"'},
+                )
+            else:
+                decision = None
+                if access_config.rate_limit_enabled and not is_public_path(request.url.path):
+                    key, plan = identity_key(request, auth.identity)
+                    decision = rate_limiter.check(key, plan)
+                    if not decision.allowed:
+                        response = JSONResponse(
+                            {"detail": "rate limit exceeded"},
+                            status_code=429,
+                            headers=decision.headers(),
+                        )
+                    else:
+                        response = await call_next(request)
+                        response.headers.update(decision.headers())
                 else:
                     response = await call_next(request)
-                    response.headers.update(decision.headers())
-            else:
-                response = await call_next(request)
 
         response.headers["X-Content-Type-Options"] = "nosniff"
         response.headers["Referrer-Policy"] = "no-referrer"
         response.headers["Permissions-Policy"] = (
             "camera=(), microphone=(), geolocation=(), payment=()"
         )
-        if auth.identity is not None:
+        if auth is not None and auth.identity is not None:
             response.headers["X-EBF-Key-Id"] = auth.identity.key_id
             response.headers["X-EBF-Plan"] = auth.identity.plan
-        if auth.bootstrap_token and response.status_code < 400:
+        if auth is not None and auth.bootstrap_token and response.status_code < 400:
             response.set_cookie(
                 access_config.cookie_name,
                 auth.bootstrap_token,

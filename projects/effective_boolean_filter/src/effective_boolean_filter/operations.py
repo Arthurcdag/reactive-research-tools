@@ -31,6 +31,21 @@ DEFAULT_PLAN_LIMITS = {
 _FINGERPRINT_SALT = b"effective-boolean-filter-api-key-fingerprint-v1"
 _FINGERPRINT_ROUNDS = 120_000
 
+# Pre-validation request-body ceiling. This is a denial-of-service guard,
+# not a correctness control: Pydantic's per-field limits remain the real
+# input contract. The ceiling is set comfortably above the largest body
+# any endpoint's Pydantic model can legitimately accept (the widest is
+# ``/advisory/nyahlothep`` with 20 full candidates, ~280 KB), so it never
+# rejects a request Pydantic would have accepted. It only stops an
+# attacker streaming a multi-megabyte payload that the server would
+# otherwise buffer and hand to Pydantic before rejection.
+#
+# Header-based: it inspects ``Content-Length`` and so does not cover
+# chunked requests with no declared length. A reverse proxy body-size cap
+# is still the recommended outer control for public deployments.
+DEFAULT_MAX_BODY_BYTES = 512 * 1024
+_MIN_MAX_BODY_BYTES = 1024
+
 
 @dataclass(frozen=True)
 class ConfiguredApiKey:
@@ -90,6 +105,7 @@ class AccessConfig:
     rate_limit_enabled: bool
     plan_limits: Mapping[str, RateLimit]
     default_plan: str
+    max_body_bytes: int
 
 
 def _truthy(value: str | None) -> bool:
@@ -178,6 +194,29 @@ def _load_plan_limits(env: Mapping[str, str]) -> Mapping[str, RateLimit]:
     return limits
 
 
+def parse_max_body_bytes(value: str | None) -> int:
+    """Parse the ``EBF_MAX_BODY_BYTES`` override.
+
+    Unset/blank uses :data:`DEFAULT_MAX_BODY_BYTES`. A value below
+    :data:`_MIN_MAX_BODY_BYTES` would reject ordinary requests, so it is
+    rejected as a misconfiguration rather than silently clamped.
+    """
+    if value is None or not value.strip():
+        return DEFAULT_MAX_BODY_BYTES
+    try:
+        parsed = int(value.strip())
+    except ValueError as exc:
+        raise ValueError(
+            f"invalid EBF_MAX_BODY_BYTES {value!r}; expected a positive integer"
+        ) from exc
+    if parsed < _MIN_MAX_BODY_BYTES:
+        raise ValueError(
+            f"EBF_MAX_BODY_BYTES {parsed} is below the {_MIN_MAX_BODY_BYTES}-byte "
+            "floor; that would reject ordinary requests"
+        )
+    return parsed
+
+
 def load_access_config(env: Mapping[str, str] | None = None) -> AccessConfig:
     source = dict(os.environ if env is None else env)
     public_mode = _truthy(source.get("EBF_PUBLIC_MODE"))
@@ -201,11 +240,33 @@ def load_access_config(env: Mapping[str, str] | None = None) -> AccessConfig:
         rate_limit_enabled=public_mode or _truthy(source.get("EBF_RATE_LIMIT_ENABLED")),
         plan_limits=_load_plan_limits(source),
         default_plan=default_plan,
+        max_body_bytes=parse_max_body_bytes(source.get("EBF_MAX_BODY_BYTES")),
     )
 
 
 def is_public_path(path: str) -> bool:
     return path in PUBLIC_PATHS
+
+
+def content_length_over_limit(request: Any, limit_bytes: int) -> int | None:
+    """Return the declared body size when it exceeds ``limit_bytes``.
+
+    Returns ``None`` when the request is within the limit, has no
+    ``Content-Length`` header, or declares an unparseable length — those
+    cases fall through to Pydantic's per-field validation. The header
+    check exists to reject an oversized payload *before* the server
+    buffers it; it is a fast-path guard, not the only line of defence.
+    """
+    raw = request.headers.get("content-length")
+    if raw is None:
+        return None
+    try:
+        length = int(raw)
+    except (TypeError, ValueError):
+        return None
+    if length > limit_bytes:
+        return length
+    return None
 
 
 def authenticate_request(request: Any, config: AccessConfig) -> AuthResult:

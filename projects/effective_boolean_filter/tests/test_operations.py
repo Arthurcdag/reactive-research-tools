@@ -18,6 +18,7 @@ ENV_KEYS = (
     "EBF_PLAN_LIMITS",
     "EBF_ENABLE_DOCS",
     "EBF_DISABLE_DOCS",
+    "EBF_MAX_BODY_BYTES",
 )
 
 
@@ -124,3 +125,86 @@ def test_commercial_and_legal_surfaces_are_public(monkeypatch: pytest.MonkeyPatc
     assert {plan["slug"] for plan in plans.json()["plans"]} >= {"starter", "pro", "enterprise"}
     assert terms.status_code == 200
     assert privacy.status_code == 200
+
+
+# ---------------------------------------------------------------------------
+# request body-size limit
+# ---------------------------------------------------------------------------
+
+def test_oversized_request_body_rejected_with_413(monkeypatch: pytest.MonkeyPatch):
+    """A body whose Content-Length exceeds the configured limit is rejected
+    before auth, rate limiting, or Pydantic ever runs."""
+    client = _client(monkeypatch, EBF_MAX_BODY_BYTES="2048")
+    response = client.post(
+        "/evaluate_argument",
+        json={"claim": "P", "argument": "P. " * 2000},  # well over 2 KB
+    )
+    assert response.status_code == 413
+    assert "too large" in response.json()["detail"]
+    # the baseline security headers still go out on the rejection
+    assert response.headers["x-content-type-options"] == "nosniff"
+
+
+def test_body_within_limit_still_processed(monkeypatch: pytest.MonkeyPatch):
+    client = _client(monkeypatch, EBF_MAX_BODY_BYTES="65536")
+    response = client.post(
+        "/evaluate_argument",
+        json={"claim": "P", "argument": "P. Therefore P."},
+    )
+    assert response.status_code == 200
+
+
+def test_body_limit_short_circuits_before_auth(monkeypatch: pytest.MonkeyPatch):
+    """In public mode an oversized body returns 413, not 401 — the size
+    guard runs first so an attacker cannot make the server buffer a huge
+    payload just to then reject it for missing a key."""
+    client = _client(
+        monkeypatch,
+        EBF_PUBLIC_MODE="1",
+        EBF_API_KEYS="starter-account:starter:secret-token",
+        EBF_MAX_BODY_BYTES="2048",
+    )
+    response = client.post(
+        "/evaluate_argument",
+        json={"claim": "P", "argument": "P. " * 2000},
+    )
+    assert response.status_code == 413
+
+
+def test_default_body_limit_accepts_a_maxed_out_score_probes_body(
+    monkeypatch: pytest.MonkeyPatch,
+):
+    """The default ceiling must never reject a body Pydantic would accept.
+    A fully loaded /score_probe_results body (20 answers at max field
+    sizes) is the widest engine payload; it must pass the size guard and
+    then succeed."""
+    client = _client(monkeypatch)
+    answers = [
+        {"question": "q" * 1000, "passed": True, "answer": "a" * 4000}
+        for _ in range(20)
+    ]
+    response = client.post(
+        "/score_probe_results",
+        json={"claim": "P", "argument": "P. Therefore P.", "answers": answers},
+    )
+    assert response.status_code == 200
+
+
+def test_invalid_max_body_bytes_is_a_visible_misconfiguration():
+    """A sub-floor or unparseable EBF_MAX_BODY_BYTES raises rather than
+    silently degrading to a value that would reject ordinary traffic."""
+    from src.effective_boolean_filter.operations import (
+        DEFAULT_MAX_BODY_BYTES,
+        load_access_config,
+        parse_max_body_bytes,
+    )
+
+    assert parse_max_body_bytes(None) == DEFAULT_MAX_BODY_BYTES
+    assert parse_max_body_bytes("  ") == DEFAULT_MAX_BODY_BYTES
+    assert parse_max_body_bytes("4096") == 4096
+    with pytest.raises(ValueError, match="floor"):
+        parse_max_body_bytes("512")
+    with pytest.raises(ValueError, match="positive integer"):
+        parse_max_body_bytes("not-a-number")
+    with pytest.raises(ValueError):
+        load_access_config({"EBF_MAX_BODY_BYTES": "0"})

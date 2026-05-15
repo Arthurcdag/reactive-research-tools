@@ -2,6 +2,27 @@
 
 This directory contains the scripts developed for the Xi–Jensen numerical/certification workflow.
 
+## Status: kept in-tree, under CI smoke coverage only
+
+This pipeline is a separate research toolchain from the Effective Boolean
+Filter and was previously dormant in the repo. The decision recorded in
+`CHANGELOG.md` is to **keep it in-tree under CI smoke coverage** rather than
+archive or move it: it shares the repository's research-workbench framing and
+the smoke tests are cheap enough to run on every PR.
+
+Concretely, that means:
+
+- `projects/xi_jensen_pipeline/tests/` runs on every push (pure-function unit
+  tests, CLI `--help` smoke tests, and a header + locked-row regression
+  against the committed dashboard smoke CSVs in `sample_outputs/`).
+- The **expensive workloads stay manual**: certification campaigns,
+  deepcheck batches, contour stress harnesses, high-precision verification,
+  and any publication-grade audit run are not invoked by CI and should be
+  driven explicitly from a developer machine.
+- Open items on the certification loop (batch planner, residual-gated
+  certification, publication-grade audit report) live on
+  `PROJECT_BOARD.md` and `docs/DEVELOPER_NEXT_STEPS.md`.
+
 ## Workflow
 
 ```text

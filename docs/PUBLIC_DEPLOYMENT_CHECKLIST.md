@@ -68,10 +68,18 @@ the engine with full-size requests.
 - [ ] Stricter ceilings on `POST /evaluate_argument` and
       `POST /score_probe_results` (engine work) than on
       `POST /generate_probes` (cheap parse-only).
-- [ ] A request-body size cap at the proxy layer — recommended
-      8 KB for `/generate_probes`, 32 KB for the others — so an
-      attacker cannot keep Pydantic busy parsing a 10 MB payload
-      that would have been rejected anyway.
+- [x] An app-level request-body size cap. The security middleware
+      rejects any request whose `Content-Length` exceeds
+      `EBF_MAX_BODY_BYTES` (default 512 KB) with `413` *before* auth,
+      rate limiting, or Pydantic runs, so an attacker cannot make the
+      server buffer a multi-megabyte payload just to reject it. The
+      default is set above the widest Pydantic-valid body
+      (`/advisory/nyahlothep` with 20 full candidates) so it never
+      rejects a legitimate request.
+- [ ] A request-body size cap at the **proxy layer** as well — the
+      app-level check reads `Content-Length` and so does not cover
+      chunked requests with no declared length. A proxy cap closes
+      that gap and lets you set tighter per-route ceilings.
 - [x] Document the limits publicly so legitimate clients know what
       to expect; emit `Retry-After` on `429` responses.
 

@@ -329,3 +329,30 @@ def test_invalid_report_id_returns_400():
     r = client.get("/reports/..%2Fescape")  # encoded "../escape"
     # Either 400 (caught by store) or 404 (FastAPI path matching) — both are safe.
     assert r.status_code in (400, 404)
+
+
+def test_dashboard_template_lives_alongside_module():
+    """The dashboard template is shipped as a sibling file to dashboard.py
+    so packagers / Docker copies pick it up automatically. If the file is
+    moved or accidentally excluded, this test fails before a 500 ever
+    reaches a user."""
+    from pathlib import Path
+
+    from src.effective_boolean_filter import dashboard as dash
+
+    template = Path(dash.__file__).with_name("dashboard_template.html")
+    assert template.is_file(), f"missing dashboard template at {template}"
+    contents = template.read_text(encoding="utf-8")
+    assert contents.startswith("<!doctype html>")
+    assert "__CSP_NONCE__" in contents
+    # back-compat: existing callers grep ``DASHBOARD_HTML`` from this module
+    assert dash.DASHBOARD_HTML == contents
+
+
+def test_render_dashboard_html_rejects_self_referential_nonce():
+    """A nonce containing the placeholder would replace itself recursively
+    and produce broken HTML. The render helper makes that misuse visible."""
+    from src.effective_boolean_filter.dashboard import render_dashboard_html
+
+    with pytest.raises(ValueError, match="placeholder"):
+        render_dashboard_html("prefix__CSP_NONCE__suffix")

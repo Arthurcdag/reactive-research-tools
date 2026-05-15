@@ -68,10 +68,14 @@ projects/xi_jensen_pipeline
 ├── .github/
 │   ├── ISSUE_TEMPLATE/
 │   └── workflows/
+├── CHANGELOG.md
 ├── GITHUB_SETUP.md
 ├── requirements.txt
 └── README.md
 ```
+
+Shipped history lives in [`CHANGELOG.md`](CHANGELOG.md); forward-looking work
+lives in [`docs/DEVELOPER_NEXT_STEPS.md`](docs/DEVELOPER_NEXT_STEPS.md).
 
 ## Quick start
 
@@ -181,6 +185,60 @@ Run the Xi–Jensen dashboard if the corresponding generated scripts and depende
 ```bash
 python projects/xi_jensen_pipeline/scripts/xi_jensen_frontier_dashboard.py --help
 ```
+
+## Public surface
+
+This is the contract callers can depend on. Endpoints not in this table are
+internal and may change or disappear without notice. "Stable" means the
+request/response shape will not break without a `CHANGELOG.md` entry.
+
+### Effective Boolean Filter API (`effective_boolean_filter.api:app`)
+
+| Method & path | Stability | Auth in public mode | Purpose |
+| --- | --- | --- | --- |
+| `GET /` | stable | required | Browser dashboard (HTML, restrictive CSP) |
+| `GET /health` | stable | public (no key) | Liveness probe |
+| `POST /evaluate_argument` | stable | required | Run the deterministic filter on one claim/argument |
+| `POST /generate_probes` | stable | required | Generate reactive probes (parse-only, cheap) |
+| `POST /score_probe_results` | stable | required | Re-score a report with probe answers |
+| `GET /reports/{id}` | stable | required | Fetch a stored report by id |
+| `POST /advisory/run` | stable | required | Orchestrated wrapper: Azatoth → filter → Nyahlothep |
+| `POST /advisory/azatoth` | stable | required | Deterministic candidate generation only |
+| `POST /advisory/azatoth/input` | stable | required | LLM-backed candidate generation (inputer) |
+| `POST /advisory/nyahlothep` | stable | required | Select from caller-supplied candidates |
+| `POST /advisory/nyahlothep/output` | stable | required | LLM narration of a selected report (outputer) |
+| `GET /advisory/provider/status` | stable | required | No-network provider config check |
+| `GET /advisory/ledger` | stable | required | List advisory ledger entries (when enabled) |
+| `GET /advisory/ledger/{entry_id}` | stable | required | Fetch one ledger entry |
+| `POST /advisory/ledger/{entry_id}/replay` | stable | required | Verify the hash chain and re-run selection |
+| `GET /commercial/plans` | stable | public (no key) | Plan/pricing metadata |
+| `GET /commercial/status` | stable | required | Caller's authenticated plan/identity |
+| `GET /legal/terms` | stable | public (no key) | Draft terms of service (plain text) |
+| `GET /legal/privacy` | stable | public (no key) | Draft privacy notice (plain text) |
+| `GET /docs`, `/redoc`, `/openapi.json` | internal | off in public mode | FastAPI's generated docs; default-on locally only |
+
+Notes:
+
+- **Most-used path:** `POST /advisory/run` already chains the inputer, the
+  deterministic filter, and the Nyahlothep selector. Prefer it over wiring
+  `/advisory/azatoth/input` + `/advisory/nyahlothep` by hand unless you need
+  the intermediate candidate list.
+- **Verdict source:** only the deterministic engine produces a verdict. The
+  `/advisory/*` LLM endpoints are advisory and pass through structured-JSON
+  validation before any output is surfaced.
+- **Public mode** (`EBF_PUBLIC_MODE=1`) gates every non-public row above
+  behind an API key and applies per-plan rate limits. The "public (no key)"
+  rows stay reachable so health checks and plan/legal metadata work for
+  anonymous callers. See [Production / commercial mode](#production--commercial-mode).
+- **Errors are visible:** typed failures map to distinct HTTP statuses
+  (`401`, `413`, `422`, `429`, `502`, `503`, `504`) — there is no silent
+  fallback.
+
+### Xi–Jensen pipeline
+
+The Xi–Jensen scripts under `projects/xi_jensen_pipeline/scripts/` are a CLI
+research toolchain, not a network service. Each script's `--help` is its
+interface; see `projects/xi_jensen_pipeline/docs/` for per-script notes.
 
 ## Status
 
